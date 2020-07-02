@@ -1,9 +1,8 @@
 
-
 export class InputStream {
     private pos = 0;
     public line = 1;
-    public col = 0;
+    public column = 0;
 
     constructor(private input: string) { }
 
@@ -11,14 +10,6 @@ export class InputStream {
         // Get the char and go next
         const ch = this.peek();
         this.skip();
-
-        // Adjust some debugging/error/tracking variables
-        if (ch == '\n') {
-            this.line++;
-            this.col = 0;
-        } else {
-            this.col++;
-        }
 
         // return the result
         return ch;
@@ -75,27 +66,36 @@ export class InputStream {
         }, escaping);
     }
 
-    read_regex(regex: RegExp) {
+    read_regex(regex: RegExp): string {
         const result = this.input.slice(this.pos).match(regex);
         if (result !== null) {
-            this.skip(result.length);
+            this.skip(result[0].length);
+            return result[0];
         }
-        return result;
+        return null;
     }
 
     skip(amount = 1) {
         this.pos += amount;
+
+        // Adjust some debugging/error/tracking variables
+        if (this.peek() == '\n') {
+            this.line++;
+            this.column = 0;
+        } else {
+            this.column++;
+        }
     }
 
     peek(seek = 0) {
-        return this.input.charAt(this.pos + seek);
+        return this.input.charAt(this.pos + seek) || undefined;
     }
 
     eof() {
-        return this.input.length <= this.pos;
+        return this.pos >= this.input.length;
     }
 
     error(message: string) {
-        throw new Error(`Error at line ${this.line}|${this.col}: ${message}`);
+        throw new Error(`Error at line ${this.line}|${this.column}: ${message}`);
     }
 }
