@@ -32,6 +32,57 @@ export class InputStream {
         return false;
     }
 
+    private map_escaped_character(char: string) {
+        if (char === 'n') {
+            return '\n';
+        }
+        return char;
+    }
+
+    read_while(predicate: (str: string) => boolean, escaping: string = null) {
+        let result = '';
+        let escaped = false;
+        while (!this.eof()) {
+            let char = this.peek();
+
+            if (escaping && char === escaping) {
+                escaped = true;
+                this.skip();
+                continue;
+            }
+
+            if (escaped || predicate.call(this, char)) {
+                if (escaped) {
+                    char = this.map_escaped_character(char);
+                }
+                result += char;
+                escaped = false;
+                this.skip();
+            } else {
+                return result;
+            }
+        }
+        predicate.call(this, undefined);
+        return result;
+    }
+
+    read_until(end: string, escaping?: string) {
+        return this.read_while((char: string) => {
+            if (char === undefined) {
+                throw new Error(`Reached end of code but expected a ${end}`);
+            }
+            return !this.is_next_maybe_skip(end);
+        }, escaping);
+    }
+
+    read_regex(regex: RegExp) {
+        const result = this.input.slice(this.pos).match(regex);
+        if (result !== null) {
+            this.skip(result.length);
+        }
+        return result;
+    }
+
     skip(amount = 1) {
         this.pos += amount;
     }
