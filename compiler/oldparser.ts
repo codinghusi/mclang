@@ -160,7 +160,7 @@ export class Parser {
     parse_toplevel() {
         const program = [];
         while (!this.tokenStream.eof()) {
-            program.push(parse_)
+            // program.push(parse)
         }
     }
 }
