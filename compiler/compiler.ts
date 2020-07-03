@@ -1,6 +1,6 @@
 import { InputStream } from "./inputstream";
-import { TokenStream } from './newlexer';
-import { TokenLayout, TokenPattern } from './newlexer';
+import { TokenStream } from './lexer';
+import { TokenLayout, TokenPattern } from './lexer';
 
 function compile(code: string) {
     const inputStream = new InputStream(code);
@@ -22,9 +22,9 @@ function compile(code: string) {
         new TokenLayout('entity', [
             TokenPattern.RegEx(/^\@/),
         ], entity => entity.slice(1)),
-        new TokenLayout('relativePosition', [
-            TokenPattern.OneOf("~"),
-        ]),
+        // new TokenLayout('relativePosition', [
+        //     TokenPattern.OneOf("~"),
+        // ]),
         new TokenLayout('identifier', [
             TokenPattern.RegEx(/^[a-zA-Z_]\w*/),
         ]),
@@ -32,7 +32,7 @@ function compile(code: string) {
             TokenPattern.OneOf(",;(){}[]"),
         ]),
         new TokenLayout('operator', [
-            TokenPattern.OneOfEntry([ '+', '-', '*', '/', '%', '=', '+=', '-=', '/=', '*=', '%=', '<', '>', '>=', '<=', '==', '!=', '&&', '||' ]),
+            TokenPattern.OneOfEntry([ '+', '-', '*', '/', '%', '=', '+=', '-=', '/=', '*=', '%=', '<', '>', '>=', '<=', '==', '!=', '&&', '||', '=>' ]),
         ]),
     ], ['whitespace', 'comment']);
 
@@ -42,7 +42,6 @@ function compile(code: string) {
         console.log(next);
         result.push(next);
     }
-    // console.log(result);
 }
 
 compile(`
@@ -50,5 +49,11 @@ function test(asdf, blub) {
     const foo = "bar\\"asdf";
 }
 
-const location = Location(~, ~, ~-1);
+// relative positions aren't implemented yet
+const location = Location(1, 1, 1);
+
+// should that get implemented?
+const fn = () => {
+    say("hi");
+};
 `);

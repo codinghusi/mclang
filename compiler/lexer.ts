@@ -99,7 +99,7 @@ export class TokenStream {
             }
         };
 
-        // Nothing worked
+        // If nothing worked
         throw new Error(`Unexpected Character ${this.inputStream.peek()}`);
     }
 
