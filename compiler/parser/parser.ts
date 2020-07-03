@@ -1,8 +1,9 @@
 import { TokenStream } from '../lexer';
-import { CodeSegment, Segments } from './segments';
+import { CodeSegment, Segments, CodeSegmentResult } from './segments';
 
 export class CodeParser {
     private segments: CodeSegment[] = [];
+    private astType: string;
 
     private convertFunction = (raw: any) => {
         return raw;
@@ -16,6 +17,11 @@ export class CodeParser {
 
     constructor(public name?: string) {
         // TODO: maybe register here
+        this.type(name);
+    }
+
+    type(type: string) {
+        this.astType = type;
     }
 
     expect(key: string, type: string, value: string) {
@@ -31,6 +37,9 @@ export class CodeParser {
     maybe(parser: CodeParser | string) {
         this.segment(tokenStream => {
             parser = this.resolveParser(parser);
+            
+            console.log(`Parser(${this.name ?? 'unnamed'}).maybe(parser: ${parser.name ?? 'unnamed'})`);
+            
             const result = parser.run(null, tokenStream);
             if (!result.matched) {
                 return {
@@ -59,7 +68,7 @@ export class CodeParser {
         return CodeParser.getRegisteredParser(name);
     }
 
-    resolveParser(parser: CodeParser | string) {
+    static resolveParser(parser: CodeParser | string) {
         if (typeof parser === 'string') {
             const newParser = this.getRegisteredParser(parser);
             if (!newParser) {
@@ -72,9 +81,16 @@ export class CodeParser {
         return parser;
     }
 
+    resolveParser(parser: CodeParser | string) {
+        return CodeParser.resolveParser(parser);
+    }
+
     parse(key: string, parser: CodeParser | string) {
         this.segment(tokenStream => {
             parser = this.resolveParser(parser);
+            
+            console.log(`Parser(${this.name ?? 'unnamed'}).parse(key: ${key}, parser: ${parser.name ?? 'unnamed'})`);
+            
             const result = (parser as CodeParser).run(key, tokenStream);
             return result;
         });
@@ -105,25 +121,8 @@ export class CodeParser {
         return this;
     }
 
-    delimited(key: string, from: CodeSegment, to: CodeSegment, seperator: CodeSegment, parser: CodeParser | string) {
-        this.segment(tokenStream => {
-            const mainParser = new CodeParser();
-
-            const parser1 = new CodeParser()
-                .parse('values[]', parser)
-                .segment(seperator)
-                .parse(null, mainParser);
-
-            const parser2 = new CodeParser()
-                .parse(null, parser)
-
-            mainParser
-                .segment(from)
-                .join('asdf', parser1, parser2)
-                .convert(raw => raw.values);
-
-            return mainParser.run(key, tokenStream);
-        })
+    delimitted(key: string, from: CodeSegment, to: CodeSegment, seperator: CodeSegment, parser: CodeParser | string) {
+        this.segment(Segments.delimitted(key, from, to, seperator, parser));
         return this;
     }
 
@@ -140,8 +139,26 @@ export class CodeParser {
         return this;
     }
 
+    until(key: string, end: CodeSegment, parser: CodeParser | string) {
+        this.segment(tokenStream => {
+            parser = this.resolveParser(parser);
+            return Segments.until(key, end, parser)(tokenStream);
+        });
+        return this;
+    }
+
     private isKeySayingArray(keyname: string) {
         return /\[\]$/.test(keyname);
+    }
+
+    error(result: CodeSegmentResult, tokenStream: TokenStream) {
+        const token = tokenStream.peek();
+        const prefix = `Problem with line ${token.line}:${token.column}: `;
+        if (result.failMsg) {
+            throw new Error(prefix + result.failMsg);
+        } else {
+            throw new Error(prefix + `Unexpected ${token.type} ${token.value}`);
+        }
     }
 
     // TODO: please add comments to this mess
@@ -149,8 +166,12 @@ export class CodeParser {
         return tokenStream => {
             const values: any = {};
             let first = true;
+            let i = 0;
             for (const segment of this.segments) {
                 const result = segment(tokenStream);
+                if (result.failed) {
+                    this.error(result, tokenStream);
+                }
                 if (result.matched) {
                     if (result.skip) {
                         tokenStream.next();
@@ -171,15 +192,14 @@ export class CodeParser {
                         }
                     }
                     first = false;
+                    ++i;
                 } else {
                     if (first) {
                         return {
                             matched: false
                         };
                     } else {
-                        const token = tokenStream.peek();
-                        console.log(`extracted: `, values);
-                        throw new Error(`Unexpected ${token.type} ${token.value}`);
+                        this.error(result, tokenStream);
                     }
                 }
             }

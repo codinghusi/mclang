@@ -53,7 +53,7 @@ function maybe_punctuation(value: string): CodeSegment {
 const entrypoint = new CodeParser('entrypoint')
     
     .register(new CodeParser('condition')
-        .delimited('condition', Segments.expect(null, 'punctuation', '('), Segments.expect(null, 'punctuation', ')'), Segments.doesntMatter(), 'expression')
+        .delimitted('condition', Segments.expect(null, 'punctuation', '('), Segments.expect(null, 'punctuation', ')'), Segments.doesntMatter(), 'expression')
     )
     .register(new CodeParser('if')
         .expect(null, 'identifier', 'if')
@@ -72,18 +72,18 @@ const entrypoint = new CodeParser('entrypoint')
         .expectType('name', 'identifier')
         .maybe(new CodeParser()
             .expect(null, 'punctuation', '=')
-            .parse('value', 'value'))
+            .parse('default', 'value'))
     )
 
     .register(new CodeParser('arguments')
-        .delimited('arguments', Segments.expect(null, 'punctuation', '('), Segments.expect(null, 'punctuation', ')'), Segments.expect(null, 'punctuation', ','), 'argument')
+        .delimitted(null, Segments.expect(null, 'punctuation', '('), Segments.expect(null, 'punctuation', ')'), Segments.expect(null, 'punctuation', ','), 'argument')
     )
 
     .register(new CodeParser('function')
         .expect(null, 'identifier', 'function')
         .expectType('name', 'identifier')
         .parse('arguments', 'arguments')
-        .parse('body', 'atom')
+        .parse('body', 'codeblock')
     )
 
     .register(new CodeParser('expression')
@@ -91,7 +91,12 @@ const entrypoint = new CodeParser('entrypoint')
     )
 
     .register(new CodeParser('atom')
-        .join(null, 'if', 'function'))
+        .join(null, 'if', 'function', 'codeblock'))
+
+    .register(new CodeParser('codeblock')
+        .expect(null, 'punctuation', '{')
+        .until('body', Segments.expect(null, 'punctuation', '}'), 'atom')
+    )
 
     // start
     // .untilEOF('untilEof', new CodeParser()
@@ -102,7 +107,8 @@ const entrypoint = new CodeParser('entrypoint')
     //             // .segment(Segments.fail('Nothing applied'))
     //     )
     // )
-    .untilEOF('untilEof', 'atom');
+    // .untilEOF('untilEof', 'atom');
+    .parse(null, 'atom');
 
 
 
@@ -143,6 +149,7 @@ function compile(code: string) {
     const parser = new Parser(entrypoint);
     const ast = parser.parse(tokenStream);
     console.log(ast);
+
 }
 
 // compile(`
@@ -160,7 +167,7 @@ function compile(code: string) {
 // `);
 
 compile(`
-function test(firstArg, secondArg) {
+function test(firstArg = 5 /*<- Problem with this 5*/, secondArg) {
 
 }
 `)

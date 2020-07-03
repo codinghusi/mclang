@@ -5,54 +5,66 @@ import { CodeParser } from "./parser";
 export interface CodeSegmentResult {
     matched: boolean;
     skip?: boolean;
+    failed?: boolean;
+    failMsg?: string;
+    key?: string;
+    data?: any;
+    type?: string;
 }
 
-export interface CodeSegmentResultWithData extends CodeSegmentResult {
-    key: string;
-    data: any;
-}
-
-export type CodeSegment = (tokenStream: TokenStream) => CodeSegmentResult | CodeSegmentResultWithData;
+export type CodeSegment = (tokenStream: TokenStream) => CodeSegmentResult;
 
 export const Segments = {
     expect(key: string, type: string, value: string): CodeSegment {
         return (tokenStream: TokenStream) => {
+            console.log(`expect(key: ${key}, type: ${type}, value: ${value})`);
+
             const token = tokenStream.peek();
+            const failMsg = `Expected ${type} ${value} but got ${token.value}`;
             const matched = token.value === value && token.type === type;
             if (key) {
                 return {
                     matched,
                     skip: true,
                     data: token.value,
-                    key
+                    key,
+                    failMsg
                 };
             }
             return {
                 matched,
                 skip: true,
+                failMsg
             };
         }
     },
     expectType(key: string, type: string) {
         return (tokenStream: TokenStream) => {
+            console.log(`expectType(key: ${key}, type: ${type})`);
+
             const token = tokenStream.peek();
+            const failMsg = `Expected ${type} but got ${token.type}`;
             const matched = token.type === type;
             if (key) {
                 return {
                     matched,
                     skip: true,
                     data: token.value,
-                    key
+                    key,
+                    failMsg
                 };
             }
             return {
                 matched,
                 skip: true,
+                failMsg
             };
         }
     },
     maybe(key: string, type: string, value: string): CodeSegment {
         return tokenStream => {
+            console.log(`maybe(key: ${key}, type: ${type}, value: ${value})`);
+
             const token = tokenStream.peek();
             const skip = token.value === value && token.type === type;
             if (key) {
@@ -87,7 +99,7 @@ export const Segments = {
     },
     fail(msg: string): CodeSegment {
         return tokenStream => {
-            throw new Error(msg)
+            return { matched: false, failed: true, failMsg: msg };
         }
     },
     debugSkip(): CodeSegment {
@@ -99,24 +111,7 @@ export const Segments = {
         }
     },
     until(key: string, end: CodeSegment, parser: CodeParser): CodeSegment {
-        return tokenStream => {
-            const values = [];
-            while (!end(tokenStream).matched) {
-                const result = parser.run('asdf', tokenStream);
-                if ('data' in result) {
-                    values.push(result.data);
-                }
-            }
-            if (end(tokenStream).skip) {
-                tokenStream.next();
-            }
-            return {
-                matched: true,
-                skip: false,
-                data: values,
-                key
-            };
-        };
+        return Segments.delimitted(key, Segments.doesntMatter(), end, Segments.doesntMatter(), parser);
     },
     untilEOF(key: string, parser: CodeParser): CodeSegment {
         return tokenStream => {
@@ -137,4 +132,44 @@ export const Segments = {
             };
         };
     },
+    delimitted(key: string, from: CodeSegment, to: CodeSegment, seperator: CodeSegment, parser: CodeParser | string): CodeSegment {
+        return tokenStream => {
+            const values = [];
+
+            const fromResult = from(tokenStream)
+            if (!fromResult.matched) {
+                return { matched: false, failed: true };
+            }
+            if (fromResult.skip) {
+                tokenStream.next();
+            }
+
+            while (!to(tokenStream).matched) {
+                const result = CodeParser.resolveParser(parser).run(null, tokenStream);
+                if (!result.matched) {
+                    return { matched: false, failed: true, failMsg: result.failMsg };
+                }
+                if ('data' in result) {
+                    values.push(result.data);
+                }
+
+                const seperatorResult = seperator(tokenStream);
+                if (!seperatorResult.matched) {
+                    break;
+                } else if (seperatorResult.skip) {
+                    tokenStream.next();
+                }
+            }
+            if (to(tokenStream).skip) {
+                tokenStream.next();
+            }
+            return {
+                matched: true,
+                skip: false,
+                data: values,
+                key,
+                type: this.astType ?? undefined
+            };
+        };
+    }
 }
