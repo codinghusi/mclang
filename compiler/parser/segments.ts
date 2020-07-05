@@ -17,8 +17,6 @@ export type CodeSegment = (tokenStream: TokenStream) => CodeSegmentResult;
 export const Segments = {
     expect(key: string, type: string, value: string): CodeSegment {
         return (tokenStream: TokenStream) => {
-            console.log(`expect(key: ${key}, type: ${type}, value: ${value})`);
-
             const token = tokenStream.peek();
             const failMsg = `Expected ${type} ${value} but got ${token.value}`;
             const matched = token.value === value && token.type === type;
@@ -40,8 +38,6 @@ export const Segments = {
     },
     expectType(key: string, type: string) {
         return (tokenStream: TokenStream) => {
-            console.log(`expectType(key: ${key}, type: ${type})`);
-
             const token = tokenStream.peek();
             const failMsg = `Expected ${type} but got ${token.type}`;
             const matched = token.type === type;
@@ -63,8 +59,6 @@ export const Segments = {
     },
     maybe(key: string, type: string, value: string): CodeSegment {
         return tokenStream => {
-            console.log(`maybe(key: ${key}, type: ${type}, value: ${value})`);
-
             const token = tokenStream.peek();
             const skip = token.value === value && token.type === type;
             if (key) {
@@ -104,7 +98,6 @@ export const Segments = {
     },
     debugSkip(): CodeSegment {
         return tokenStream => {
-            console.log(`skipped ${tokenStream.next().value}`);
             return {
                 matched: false
             };
@@ -119,7 +112,8 @@ export const Segments = {
             while (!tokenStream.eof()) {
                 const tokenValue = tokenStream.peek().value;
                 const result = parser.run('asdf', tokenStream);
-                console.log(`token: ${tokenValue}, matched: ${result.matched}, skip: ${result.skip}`);
+                // TODO: maybe fail if parser failed
+                console.log(`untilEOF(): token: ${tokenValue}, matched: ${result.matched}, skip: ${result.skip}`);
                 if ('data' in result) {
                     values.push(result.data);
                 }

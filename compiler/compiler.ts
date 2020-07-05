@@ -63,15 +63,15 @@ const entrypoint = new CodeParser('entrypoint')
 
     .register(new CodeParser('value')
         .join(null,
-            new CodeParser().expectType(null, 'number'),
-            new CodeParser().expectType(null, 'string')
+            new CodeParser('number').expectType('value', 'number'),
+            new CodeParser('string').expectType('value', 'string')
         )
     )
 
     .register(new CodeParser('argument')
         .expectType('name', 'identifier')
         .maybe(new CodeParser()
-            .expect(null, 'punctuation', '=')
+            .expect(null, 'operator', '=')
             .parse('default', 'value'))
     )
 
@@ -86,16 +86,25 @@ const entrypoint = new CodeParser('entrypoint')
         .parse('body', 'codeblock')
     )
 
+    .register(new CodeParser('let')
+        .expect(null, 'identifier', 'let')
+        .expectType('name', 'identifier')
+        .maybe(new CodeParser()
+            .expect(null, 'operator', '=')
+            .parse('init', 'value'))
+        .expect(null, 'punctuation', ';')
+    )
+
     .register(new CodeParser('expression')
         .segment(Segments.dont())
     )
 
     .register(new CodeParser('atom')
-        .join(null, 'if', 'function', 'codeblock'))
+        .join(null, 'if', 'function', 'codeblock', 'let'))
 
     .register(new CodeParser('codeblock')
         .expect(null, 'punctuation', '{')
-        .until('body', Segments.expect(null, 'punctuation', '}'), 'atom')
+        .until(null, Segments.expect(null, 'punctuation', '}'), 'atom')
     )
 
     // start
@@ -148,7 +157,8 @@ function compile(code: string) {
 
     const parser = new Parser(entrypoint);
     const ast = parser.parse(tokenStream);
-    console.log(ast);
+    console.log(`######################## Result ###########`)
+    console.log(JSON.stringify(ast, null, 2));
 
 }
 
@@ -167,7 +177,7 @@ function compile(code: string) {
 // `);
 
 compile(`
-function test(firstArg = 5 /*<- Problem with this 5*/, secondArg) {
-
+function test(firstArg = 5, secondArg) {
+    let foo = 'bar';
 }
 `)

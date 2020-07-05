@@ -22,6 +22,7 @@ export class CodeParser {
 
     type(type: string) {
         this.astType = type;
+        return this;
     }
 
     expect(key: string, type: string, value: string) {
@@ -37,9 +38,6 @@ export class CodeParser {
     maybe(parser: CodeParser | string) {
         this.segment(tokenStream => {
             parser = this.resolveParser(parser);
-            
-            console.log(`Parser(${this.name ?? 'unnamed'}).maybe(parser: ${parser.name ?? 'unnamed'})`);
-            
             const result = parser.run(null, tokenStream);
             if (!result.matched) {
                 return {
@@ -88,8 +86,6 @@ export class CodeParser {
     parse(key: string, parser: CodeParser | string) {
         this.segment(tokenStream => {
             parser = this.resolveParser(parser);
-            
-            console.log(`Parser(${this.name ?? 'unnamed'}).parse(key: ${key}, parser: ${parser.name ?? 'unnamed'})`);
             
             const result = (parser as CodeParser).run(key, tokenStream);
             return result;
@@ -164,7 +160,7 @@ export class CodeParser {
     // TODO: please add comments to this mess
     toSegment(key: string): CodeSegment {
         return tokenStream => {
-            const values: any = {};
+            let values: any = {};
             let first = true;
             let i = 0;
             for (const segment of this.segments) {
@@ -176,10 +172,20 @@ export class CodeParser {
                     if (result.skip) {
                         tokenStream.next();
                     }
+                    if (first) {
+                        console.log(`> ${this.name}`);
+                    }
                     if ('data' in result) {
+                        console.log(`${result.key}: ${JSON.stringify(result.data)}`);
                         const k = result.key;
                         if (!k) {
-                            Object.assign(values, result.data);
+                            // TODO: This is not final. Atom and so need an own type. Don't replace them...
+                            const data = result.data;
+                            if (Array.isArray(data)) {
+                                values = data;
+                            } else if (data instanceof Object) {
+                                Object.assign(values, result.data);
+                            }
                         } else {
                             if (this.isKeySayingArray(key)) {
                                 values[k] = [
@@ -203,10 +209,14 @@ export class CodeParser {
                     }
                 }
             }
+            const data = this.convertFunction(values);
+            if (this.astType && !data.type) {
+                data.type = this.astType;
+            }
             return {
                 matched: true,
                 skip: false,
-                data: this.convertFunction(values),
+                data,
                 key
             };
         };
