@@ -1,11 +1,12 @@
 # Current Problems:
-- CodeSegmentResult is ugly and needs rework
-    > including some methods to skip automatically
-    > better error handling
-    > better result handling
-    > Simpler Segments.expect(...), because this is very ugly
+- better error handling
 - Shorter files
 - Comments
-- Fix bugs
+- // Simpler Segments.expect(...), because this is very ugly
 
 - implement more syntax
+
+
+# next step
+- in segments: create result before a .next *facepalm* 
+

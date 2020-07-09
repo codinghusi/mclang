@@ -1,5 +1,5 @@
-import { TokenStream } from '../lexer';
-import { CodeSegment, Segments, CodeSegmentResult } from './segments';
+import { TokenStream } from '../tokenstream';
+import { CodeSegment, Segments, Result } from './segments';
 
 export class CodeParser {
     private segments: CodeSegment[] = [];
@@ -25,8 +25,8 @@ export class CodeParser {
         return this;
     }
 
-    expect(key: string, type: string, value: string) {
-        this.segment(Segments.expect(key, type, value));
+    expect(type: string, value: string) {
+        this.segment(Segments.expect(type, value));
         return this;
     }
 
@@ -39,11 +39,8 @@ export class CodeParser {
         this.segment(tokenStream => {
             parser = this.resolveParser(parser);
             const result = parser.run(null, tokenStream);
-            if (!result.matched) {
-                return {
-                    matched: true,
-                    skip: false
-                };
+            if (!result.handle()) {
+                return new Result(tokenStream).setMatch(true);
             }
             return result;
         })
@@ -98,22 +95,38 @@ export class CodeParser {
         return this;
     }
 
-    join(key: string, ...parsers: (CodeParser | string)[] ) {
-        this.segment(
-            (tokenStream: TokenStream) => {
-                const resolvedParsers = parsers.map(parser => this.resolveParser(parser));
-                for (const parser of resolvedParsers) {
-
-                    const result = parser.run(key, tokenStream);
-                    if (result.matched) {
-                        return result;
+    join(...parsers: (CodeSegment | CodeParser | string)[] ) {
+        this.segment(tokenStream => {
+            let bestProgress = -1;
+            let bestResult = null;
+            
+            // Get all to the same type
+            const parserNames = parsers.filter(parser => typeof(parser) === 'string') as string[];
+            const segments = parsers.filter(parser => typeof(parser) === 'function') as CodeSegment[];
+            const codeParsers = parsers.filter(parser => parser instanceof CodeParser) as CodeParser[];
+            const allSegments = [
+                ...parserNames
+                    .map(name => this.resolveParser(name))
+                    .concat(codeParsers)
+                    .map(parser => parser.toSegment(null)),
+                ...segments,
+            ];
+            
+            // Test all if one works
+            for (const segment of allSegments) {
+                const result = segment(tokenStream);
+                const progress = result.progress;
+                if (result.handle()) {
+                    return result;
+                } else {
+                    if (progress > 0 && bestProgress <= progress) {
+                        bestProgress = progress;
+                        bestResult = result;
                     }
                 }
-                return {
-                    matched: false
-                };
             }
-        );
+            return bestResult ?? new Result(tokenStream).setMatch(false);
+        });
         return this;
     }
 
@@ -147,11 +160,11 @@ export class CodeParser {
         return /\[\]$/.test(keyname);
     }
 
-    error(result: CodeSegmentResult, tokenStream: TokenStream) {
+    error(result: Result, tokenStream: TokenStream) {
         const token = tokenStream.peek();
         const prefix = `Problem with line ${token.line}:${token.column}: `;
-        if (result.failMsg) {
-            throw new Error(prefix + result.failMsg);
+        if (result.failMessage) {
+            throw new Error(prefix + result.failMessage);
         } else {
             throw new Error(prefix + `Unexpected ${token.type} ${token.value}`);
         }
@@ -159,66 +172,24 @@ export class CodeParser {
 
     // TODO: please add comments to this mess
     toSegment(key: string): CodeSegment {
-        return tokenStream => {
-            let values: any = {};
-            let first = true;
-            let i = 0;
+        return (tokenStream) => {
+            const result = new Result(tokenStream);
             for (const segment of this.segments) {
-                const result = segment(tokenStream);
-                if (result.failed) {
-                    this.error(result, tokenStream);
+                const segmentResult = segment(tokenStream);
+                if (!segmentResult.handle()) {
+                    return segmentResult;
                 }
-                if (result.matched) {
-                    if (result.skip) {
-                        tokenStream.next();
-                    }
-                    if (first) {
-                        console.log(`> ${this.name}`);
-                    }
-                    if ('data' in result) {
-                        console.log(`${result.key}: ${JSON.stringify(result.data)}`);
-                        const k = result.key;
-                        if (!k) {
-                            // TODO: This is not final. Atom and so need an own type. Don't replace them...
-                            const data = result.data;
-                            if (Array.isArray(data)) {
-                                values = data;
-                            } else if (data instanceof Object) {
-                                Object.assign(values, result.data);
-                            }
-                        } else {
-                            if (this.isKeySayingArray(key)) {
-                                values[k] = [
-                                    ...(values[k] ?? []),
-                                    result.data
-                                ];
-                            } else {
-                                values[k] = result.data;
-                            }
-                        }
-                    }
-                    first = false;
-                    ++i;
-                } else {
-                    if (first) {
-                        return {
-                            matched: false
-                        };
-                    } else {
-                        this.error(result, tokenStream);
-                    }
+                else if (segmentResult.hasData()) {
+                    result.addResult(segmentResult);
                 }
             }
-            const data = this.convertFunction(values);
-            if (this.astType && !data.type) {
-                data.type = this.astType;
+            const data = this.convertFunction(result.data);
+            result.setData(data);
+            // FIXME: Having a loss of type (-information)
+            if (this.astType && !result.type) {
+                result.setType(this.astType);
             }
-            return {
-                matched: true,
-                skip: false,
-                data,
-                key
-            };
+            return result;
         };
     }
 
@@ -232,9 +203,16 @@ export class Parser {
     constructor(private entrypoint: CodeParser) {}
 
     parse(tokenStream: TokenStream) {
-        const result = this.entrypoint.run('asdf', tokenStream);
-        if (!result.matched || !('data' in result)) {
-            throw new Error(`Compilation failed`);
+        const result = this.entrypoint.run(null, tokenStream);
+        const token = tokenStream.peek();
+        const prefix = `Problem with line ${token.line}:${token.column}: `;
+        
+        if (!result.handle() || !result.hasData()) {
+            if (result.failMessage) {
+                throw new Error(prefix + result.failMessage);
+            } else {
+                throw new Error(prefix + `Unexpected ${token.type} ${token.value}`);
+            }
         }
         return result.data;
     }

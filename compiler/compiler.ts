@@ -1,62 +1,29 @@
 import { InputStream } from "./inputstream";
-import { TokenStream } from './lexer';
-import { TokenLayout, TokenPattern } from './lexer';
+import { TokenStream } from './tokenstream';
+import { TokenLayout, TokenPattern } from './tokenstream';
 import { CodeParser, Parser } from './parser/parser';
 import { CodeSegment, Segments } from "./parser/segments";
 
-function keyword(name: string): CodeSegment {
-    return (tokenStream: TokenStream) => {
-        const token = tokenStream.peek();
-        const matched = token.value === name && token.type === 'identifier';
-        return {
-            matched,
-            skip: true,
-        };
-    }
-}
-
 function name(key: string): CodeSegment {
-    return (tokenStream: TokenStream) => {
-        const token = tokenStream.peek();
-        const matched = token.type === 'identifier';
-        return {
-            matched,
-            skip: true,
-            data: [key, token.value]
-        };
-    }
+    return Segments.expectType('identifier', key);
 }
 
 function punctuation(value: string): CodeSegment {
-    return (tokenStream: TokenStream) => {
-        const token = tokenStream.peek();
-        const matched = token.value === value && token.type === 'punctuation';
-        return {
-            matched,
-            skip: true,
-        };
-    }
+    return Segments.expect('punctuation', value);
 }
 
-function maybe_punctuation(value: string): CodeSegment {
-    return (tokenStream: TokenStream) => {
-        const token = tokenStream.peek();
-        const skip = token.value === value && token.type === 'punctuation';
-        return {
-            matched: true,
-            skip
-        };
-    }
+function operator(value: string): CodeSegment {
+    return Segments.expect('operator', value);
 }
 
 
 const entrypoint = new CodeParser('entrypoint')
     
     .register(new CodeParser('condition')
-        .delimitted('condition', Segments.expect(null, 'punctuation', '('), Segments.expect(null, 'punctuation', ')'), Segments.doesntMatter(), 'expression')
+        .delimitted('condition', punctuation('('), punctuation(')'), Segments.doesntMatter(), 'expression')
     )
     .register(new CodeParser('if')
-        .expect(null, 'identifier', 'if')
+        .expect('identifier', 'if')
         .parse('condition', 'condition')
         .parse('body', 'atom')
     )
@@ -71,28 +38,28 @@ const entrypoint = new CodeParser('entrypoint')
     .register(new CodeParser('argument')
         .expectType('name', 'identifier')
         .maybe(new CodeParser()
-            .expect(null, 'operator', '=')
+            .expect('operator', '=')
             .parse('default', 'value'))
     )
 
     .register(new CodeParser('arguments')
-        .delimitted(null, Segments.expect(null, 'punctuation', '('), Segments.expect(null, 'punctuation', ')'), Segments.expect(null, 'punctuation', ','), 'argument')
+        .delimitted(null, punctuation('('), punctuation(')'), punctuation(','), 'argument')
     )
 
     .register(new CodeParser('function')
-        .expect(null, 'identifier', 'function')
+        .expect('identifier', 'function')
         .expectType('name', 'identifier')
         .parse('arguments', 'arguments')
         .parse('body', 'codeblock')
     )
 
     .register(new CodeParser('let')
-        .expect(null, 'identifier', 'let')
-        .expectType('name', 'identifier')
+        .expect('identifier', 'let')
+        .segment(name('name'))
         .maybe(new CodeParser()
-            .expect(null, 'operator', '=')
+            .segment(operator('='))
             .parse('init', 'value'))
-        .expect(null, 'punctuation', ';')
+        .expect('punctuation', ';')
     )
 
     .register(new CodeParser('expression')
@@ -100,11 +67,11 @@ const entrypoint = new CodeParser('entrypoint')
     )
 
     .register(new CodeParser('atom')
-        .join(null, 'if', 'function', 'codeblock', 'let'))
+        .join('if', 'function', 'codeblock', 'let'))
 
     .register(new CodeParser('codeblock')
-        .expect(null, 'punctuation', '{')
-        .until(null, Segments.expect(null, 'punctuation', '}'), 'atom')
+        .segment(punctuation('{'))
+        .until(null, punctuation('}'), 'atom')
     )
 
     // start

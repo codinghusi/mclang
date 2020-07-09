@@ -1,4 +1,4 @@
-import { InputStream } from './inputstream';
+import { InputStream, InputStreamCheckpoint } from './inputstream';
 
 interface Token {
     type: string;
@@ -68,10 +68,23 @@ export class TokenLayout {
 }
 
 
+export class TokenStreamCheckpoint {
+    constructor(private tokenStream: TokenStream,
+                private inputStreamCheckpoint: InputStreamCheckpoint) {}
+    
+    get progress() {
+        return this.tokenStream.inputStream.position - this.inputStreamCheckpoint.position;
+    }
+
+    revert() {
+        this.inputStreamCheckpoint.revert();
+        this.tokenStream.current = null;
+    }
+}
 
 export class TokenStream {
 
-    constructor(private inputStream: InputStream,
+    constructor(public inputStream: InputStream,
                 private layouts: TokenLayout[],
                 private skipTokens: string[] = []) {
 
@@ -80,7 +93,7 @@ export class TokenStream {
     // private keywords = [ 'let', 'const', 'listen', 'event', 'if', 'else', 'true', 'false', 'function', 'class', 'for', 'forEach' ];
     // private operators = [ '+', '-', '*', '/', '%', '=', '+=', '-=', '/=', '*=', '%=', '<', '>', '>=', '<=', '==', '!=', '&&', '||' ];
 
-    private current: Token = null;
+    public current: Token = null;
 
 
     
@@ -115,5 +128,9 @@ export class TokenStream {
 
     eof() {
         return !this.peek();
+    }
+
+    checkpoint() {
+        return new TokenStreamCheckpoint(this, this.inputStream.checkpoint());
     }
 }

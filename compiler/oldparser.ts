@@ -1,4 +1,4 @@
-import { TokenStream } from "./lexer"
+import { TokenStream } from "./tokenstream"
 
 
 export class Parser {

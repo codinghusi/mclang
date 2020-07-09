@@ -1,6 +1,27 @@
 
+export class InputStreamCheckpoint {
+    public position = 0;
+    public line = 1;
+    public column = 0
+    
+    constructor(private inputStream: InputStream) {
+        this.position = inputStream.position;
+        this.line = inputStream.line;
+        this.column = inputStream.column;
+        console.log('created checkpoint at ' + this.position);
+    }
+    
+    revert() {
+        console.log('reverted to position ' + this.position);
+        this.inputStream.position = this.position;
+        this.inputStream.line = this.line;
+        this.inputStream.column = this.column;
+    }
+}
+
+
 export class InputStream {
-    private pos = 0;
+    public position = 0;
     public line = 1;
     public column = 0;
 
@@ -16,7 +37,7 @@ export class InputStream {
     }
 
     is_next_maybe_skip(string: string) {
-        if (this.input.substr(this.pos, string.length) === string) {
+        if (this.input.substr(this.position, string.length) === string) {
             this.skip(string.length);
             return true;
         }
@@ -67,7 +88,7 @@ export class InputStream {
     }
 
     read_regex(regex: RegExp): string {
-        const result = this.input.slice(this.pos).match(regex);
+        const result = this.input.slice(this.position).match(regex);
         if (result !== null) {
             this.skip(result[0].length);
             return result[0];
@@ -76,7 +97,7 @@ export class InputStream {
     }
 
     skip(amount = 1) {
-        this.pos += amount;
+        this.position += amount;
 
         // Adjust some debugging/error/tracking variables
         if (this.peek() == '\n') {
@@ -88,14 +109,18 @@ export class InputStream {
     }
 
     peek(seek = 0) {
-        return this.input.charAt(this.pos + seek) || undefined;
+        return this.input.charAt(this.position + seek) || undefined;
     }
 
     eof() {
-        return this.pos >= this.input.length;
+        return this.position >= this.input.length;
     }
 
     error(message: string) {
         throw new Error(`Error at line ${this.line}|${this.column}: ${message}`);
+    }
+
+    checkpoint() {
+        return new InputStreamCheckpoint(this);
     }
 }
