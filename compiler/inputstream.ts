@@ -8,11 +8,9 @@ export class InputStreamCheckpoint {
         this.position = inputStream.position;
         this.line = inputStream.line;
         this.column = inputStream.column;
-        console.log('created checkpoint at ' + this.position);
     }
     
     revert() {
-        console.log('reverted to position ' + this.position);
         this.inputStream.position = this.position;
         this.inputStream.line = this.line;
         this.inputStream.column = this.column;

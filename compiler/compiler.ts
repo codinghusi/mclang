@@ -1,90 +1,95 @@
 import { InputStream } from "./inputstream";
 import { TokenStream } from './tokenstream';
 import { TokenLayout, TokenPattern } from './tokenstream';
-import { CodeParser, Parser } from './parser/parser';
-import { CodeSegment, Segments } from "./parser/segments";
+import { SegmentSequence } from './parser/segment-sequence';
+import { Segments } from "./parser/segments";
+import { Segment } from "./parser/segment";
+import { Parser } from "./parser/parser";
 
-function name(key: string): CodeSegment {
-    return Segments.expectType('identifier', key);
+function name(key: string): Segment {
+    return Segments.expectType('identifier').as(key);
 }
 
-function punctuation(value: string): CodeSegment {
+function punctuation(value: string): Segment {
     return Segments.expect('punctuation', value);
 }
 
-function operator(value: string): CodeSegment {
+function operator(value: string): Segment {
     return Segments.expect('operator', value);
 }
 
 
-const entrypoint = new CodeParser('entrypoint')
+const entrypoint = new SegmentSequence('entrypoint')
     
-    .register(new CodeParser('condition')
-        .delimitted('condition', punctuation('('), punctuation(')'), Segments.doesntMatter(), 'expression')
+    .register(new SegmentSequence('condition')
+        .delimitted(punctuation('('), punctuation(')'), Segments.doesntMatter(), 'expression')
     )
-    .register(new CodeParser('if')
-        .expect('identifier', 'if')
-        .parse('condition', 'condition')
-        .parse('body', 'atom')
+    .register(new SegmentSequence('if')
+        .expect('keyword', 'if')
+        .parse('condition').as('condition')
+        .parse('atom').as('body')
     )
 
-    .register(new CodeParser('value')
-        .join(null,
-            new CodeParser('number').expectType('value', 'number'),
-            new CodeParser('string').expectType('value', 'string')
+    .register(new SegmentSequence('value')
+        .oneOf(
+            new SegmentSequence('number').expectType('number').as('number'),
+            new SegmentSequence('string').expectType('string').as('string')
+        ).as('value')
+    )
+
+    .register(new SegmentSequence('argument')
+        .expectType('identifier').as('name')
+        .optional(new SegmentSequence()
+            .expect('operator', '=')
+            .parse('value').as('default')
         )
     )
 
-    .register(new CodeParser('argument')
-        .expectType('name', 'identifier')
-        .maybe(new CodeParser()
-            .expect('operator', '=')
-            .parse('default', 'value'))
+    .register(new SegmentSequence('arguments')
+        .delimitted(punctuation('('), punctuation(')'), punctuation(','), 'argument')
     )
 
-    .register(new CodeParser('arguments')
-        .delimitted(null, punctuation('('), punctuation(')'), punctuation(','), 'argument')
+    .register(new SegmentSequence('function')
+        .expect('keyword', 'function')
+        .expectType('identifier').as('name')
+        .parse('arguments').as('arguments')
+        .parse('codeblock').as('body')
     )
 
-    .register(new CodeParser('function')
-        .expect('identifier', 'function')
-        .expectType('name', 'identifier')
-        .parse('arguments', 'arguments')
-        .parse('body', 'codeblock')
-    )
-
-    .register(new CodeParser('let')
-        .expect('identifier', 'let')
+    .register(new SegmentSequence('let')
+        .expect('keyword', 'let')
         .segment(name('name'))
-        .maybe(new CodeParser()
+        .optional(new SegmentSequence()
             .segment(operator('='))
-            .parse('init', 'value'))
+            .parse('value').as('init')
+        )
         .expect('punctuation', ';')
     )
 
-    .register(new CodeParser('expression')
+    .register(new SegmentSequence('expression')
         .segment(Segments.dont())
     )
 
-    .register(new CodeParser('atom')
-        .join('if', 'function', 'codeblock', 'let'))
+    .register(new SegmentSequence('atom')
+        .oneOf('if', 'function', 'codeblock', 'let')
+    )
 
-    .register(new CodeParser('codeblock')
+    .register(new SegmentSequence('codeblock')
         .segment(punctuation('{'))
-        .until(null, punctuation('}'), 'atom')
+        .until(punctuation('}'), 'atom').as('body')
     )
 
     // start
-    // .untilEOF('untilEof', new CodeParser()
+    // .untilEOF('untilEof', new SegmentSequence()
     //     .join(null,
     //         'atom',
-    //         new CodeParser()
+    //         new SegmentSequence()
     //             .segment(Segments.debugSkip())
     //             // .segment(Segments.fail('Nothing applied'))
     //     )
     // )
     // .untilEOF('untilEof', 'atom');
-    .parse(null, 'atom');
+    .parse('atom').as('result');
 
 
 
@@ -111,6 +116,9 @@ function compile(code: string) {
         // new TokenLayout('relativePosition', [
         //     TokenPattern.OneOf("~"),
         // ]),
+        new TokenLayout('keyword', [
+            TokenPattern.OneOfEntry([ 'let', 'const', 'listen', 'event', 'if', 'else', 'true', 'false', 'function', 'class', 'for', 'forEach', 'function' ]),
+        ]),
         new TokenLayout('identifier', [
             TokenPattern.RegEx(/^[a-zA-Z_]\w*/),
         ]),

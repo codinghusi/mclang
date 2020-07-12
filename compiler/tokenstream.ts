@@ -90,8 +90,6 @@ export class TokenStream {
 
     }
 
-    // private keywords = [ 'let', 'const', 'listen', 'event', 'if', 'else', 'true', 'false', 'function', 'class', 'for', 'forEach' ];
-    // private operators = [ '+', '-', '*', '/', '%', '=', '+=', '-=', '/=', '*=', '%=', '<', '>', '>=', '<=', '==', '!=', '&&', '||' ];
 
     public current: Token = null;
 

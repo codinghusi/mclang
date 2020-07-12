@@ -1,12 +1,10 @@
 # Current Problems:
+- currently on a good way:
+> fix the doubled { body: { body: ... } } problem
+> figure out that codeblocks return arrays, not objects
+
 - better error handling
-- Shorter files
 - Comments
-- // Simpler Segments.expect(...), because this is very ugly
 
 - implement more syntax
-
-
-# next step
-- in segments: create result before a .next *facepalm* 
 

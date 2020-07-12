@@ -1,4 +1,4 @@
-import { TokenStream } from "./tokenstream"
+/*import { TokenStream } from "./tokenstream"
 
 
 export class Parser {
@@ -163,4 +163,4 @@ export class Parser {
             // program.push(parse)
         }
     }
-}
+}*/
