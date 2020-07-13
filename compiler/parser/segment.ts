@@ -14,9 +14,9 @@ export class Segment {
         }
         const checkpoint = tokenStream.checkpoint();
         const result = this.fn(tokenStream, this);
+        result.setProgress(checkpoint.progress);
         if (!result.matched()) {
             checkpoint.revert();
-            // console.log('reverted to ' + tokenStream.inputStream.position);
         } else {
             if (this.key) {
                 result.setKey(this.key);

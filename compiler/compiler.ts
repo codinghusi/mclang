@@ -27,13 +27,13 @@ const entrypoint = new SegmentSequence('entrypoint')
     .register(new SegmentSequence('if')
         .expect('keyword', 'if')
         .parse('condition').as('condition')
-        .parse('atom').as('body')
+        .parse('command').as('execution')
     )
 
     .register(new SegmentSequence('value')
         .oneOf(
-            new SegmentSequence('number').expectType('number').as('number'),
-            new SegmentSequence('string').expectType('string').as('string')
+            new SegmentSequence('number').expectType('number').as('value'),
+            new SegmentSequence('string').expectType('string').as('value')
         ).as('value')
     )
 
@@ -46,37 +46,39 @@ const entrypoint = new SegmentSequence('entrypoint')
     )
 
     .register(new SegmentSequence('arguments')
-        .delimitted(punctuation('('), punctuation(')'), punctuation(','), 'argument')
+        .noType()
+        .delimitted(punctuation('('), punctuation(')'), punctuation(','), 'argument').as('arguments')
     )
 
     .register(new SegmentSequence('function')
         .expect('keyword', 'function')
         .expectType('identifier').as('name')
-        .parse('arguments').as('arguments')
+        .parse('arguments')
         .parse('codeblock').as('body')
     )
 
     .register(new SegmentSequence('let')
         .expect('keyword', 'let')
-        .segment(name('name'))
+        .expectType('identifier').as('name')
         .optional(new SegmentSequence()
-            .segment(operator('='))
+            .parse(operator('='))
             .parse('value').as('init')
         )
         .expect('punctuation', ';')
     )
 
     .register(new SegmentSequence('expression')
-        .segment(Segments.dont())
+        .parse(Segments.dont())
     )
 
-    .register(new SegmentSequence('atom')
+    .register(new SegmentSequence('command')
         .oneOf('if', 'function', 'codeblock', 'let')
     )
 
     .register(new SegmentSequence('codeblock')
-        .segment(punctuation('{'))
-        .until(punctuation('}'), 'atom').as('body')
+        // TODO: create a .between()
+        .parse(punctuation('{'))
+        .until(punctuation('}'), 'command').as('commands')
     )
 
     // start
@@ -88,8 +90,8 @@ const entrypoint = new SegmentSequence('entrypoint')
     //             // .segment(Segments.fail('Nothing applied'))
     //     )
     // )
-    // .untilEOF('untilEof', 'atom');
-    .parse('atom').as('result');
+    // .parse('command').as('ast');
+    .untilEOF('command').as('ast');
 
 
 
@@ -152,7 +154,7 @@ function compile(code: string) {
 // `);
 
 compile(`
-function test(firstArg = 5, secondArg) {
+function test(firstArg = 5, secondArg = "hi") {
     let foo = 'bar';
 }
 `)

@@ -20,16 +20,14 @@ export const Segments = {
     expectType(type: string): Segment {
         return new Segment((tokenStream, context) => {
             const token = tokenStream.next();
-            const failMessage = `Expected ${type} but got ${token.type}`;
+            const failMessage = `Expected ${type} but got ${token.type} ${token.value}`;
             const matched = token.type === type;
-
-            console.log('expectType key: ' + context.key);
 
             return new Result(tokenStream)
                 .setMatch(matched)
                 .setFailInfo(failMessage)
                 .setProgressMessage(`got ${type} ${token.value} as ${context.key ?? 'unnamed'}`)
-                .add(context.key, token);
+                .setData(token);
         }, `.expectType('${type}')`);
     },
     maybe(type: string, value: string, key?: string): Segment {
@@ -63,23 +61,25 @@ export const Segments = {
         return Segments.delimitted(Segments.doesntMatter(), end, Segments.doesntMatter(), parser);
     },
     untilEOF(parser: Segment): Segment {
-        return new Segment((tokenStream, context) => {
-            const result = new Result(tokenStream);
+        return new Segment((tokenStream) => {
+            const result = new Result(tokenStream).setMatch(true);
+            const values = [];
             while (!tokenStream.eof()) {
                 const parserResult = parser.run(tokenStream);
                 if (!parserResult.matched()) {
                     return parserResult;
                 }
                 if (parserResult.hasData()) {
-                    result.addToArray(context.key, parserResult.data);
+                    values.push(parserResult.data);
                 }
             }
-            return result.setMatch(true);
+            return result.setData(values);
         });
     },
     delimitted(from: Segment, to: Segment, seperator: Segment, parser: ResolveableSegment): Segment {
         return new Segment((tokenStream) => {
-            const result = new Result(tokenStream);
+            const values = [];
+            const result = new Result(tokenStream).setMatch(true);
 
             const fromResult = from.run(tokenStream);
             if (!fromResult.matched()) {
@@ -87,13 +87,13 @@ export const Segments = {
             }
 
             while (!to.run(tokenStream).matched()) {
-                const parserResult = result.useParser(SegmentSequence.resolveSegment(parser));
+                const parserResult = SegmentSequence.resolveSegment(parser).run(tokenStream);
                 if (!parserResult.matched()) {
                     return result;
                 }
 
                 if (parserResult.hasData()) {
-                    result.addToArray(this._key, parserResult.data);
+                    values.push(parserResult.data);
                 }
 
                 if (!seperator.run(tokenStream).matched()) {
@@ -104,9 +104,7 @@ export const Segments = {
                     break;
                 }
             }
-            return result
-                .setMatch(true)
-                .setType(this.astType ?? undefined);
+            return result.setData(values);
         });
         // }, `.delmitted('${key}', ${from.debuggingCode}, ${to.debuggingCode}, ${seperator.debuggingCode}, ${parser})`);
     }

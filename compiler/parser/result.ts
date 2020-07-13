@@ -4,14 +4,26 @@ import { ResolveableSegment, SegmentSequence } from './segment-sequence';
 export class Result {
     private _matched = false;
     private _hasData = false;
-    public data: any = {};
+    private _data: any = {};
+    public progress: number;
     public failMessage: string;
     public failData: any;
     public key: string;
     public type: string;
     public progressMessage: string;
 
-    constructor(private tokenStream: TokenStream) {
+    constructor(private tokenStream: TokenStream) { }
+
+    get data() {
+        if (this.matched()) {
+            return this._data;
+        }
+        return null;
+    }
+
+    setProgress(progress: number) {
+        this.progress = progress;
+        return this;
     }
 
     setMatch(hasMatch = true) {
@@ -26,7 +38,10 @@ export class Result {
 
     setType(type: string) {
         this.type = type;
-        this.add('type', type);
+        this._data = {
+            type: this.type,
+            ...this._data
+        };
         return this;
     }
 
@@ -44,7 +59,7 @@ export class Result {
     add(key: string, value: any) {
         // Shorthand: if no key is provided it does nothing (So the content won't be in the result if not wanted)
         if (key) {
-            this.data[key] = value;
+            this._data[key] = value;
             this._hasData = true;
         }
         return this;
@@ -52,8 +67,8 @@ export class Result {
 
     addToArray(key: string, value: any) {
         if (key) {
-            let array = this.data[key] || [];
-            this.data[key] = array;
+            let array = this._data[key] || [];
+            this._data[key] = array;
             array.push(value);
             this._hasData = true;
         }
@@ -61,13 +76,13 @@ export class Result {
     }
 
     setData(data: any) {
-        this.data = data;
+        this._data = data;
         this._hasData = true;
         return this;
     }
 
     addData(data: any) {
-        Object.assign(this.data, data);
+        Object.assign(this._data, data);
         this._hasData = true;
         return this;
     }
@@ -75,8 +90,7 @@ export class Result {
     addResult(result: Result) {
         if (result.hasData()) {
             if (result.key) {
-                this.data[result.key] = result.data;
-                this._hasData = true;
+                this.add(result.key, result.data);
             } else {
                this.addData(result.data);
             }
@@ -87,15 +101,7 @@ export class Result {
     useParser(parser: ResolveableSegment) {
         parser = SegmentSequence.resolveSegment(parser);
         const result = parser.run(this.tokenStream);
-        if (result.matched()) {
-            if (result.hasData()) {
-                if (result.key) {
-                    this.add(result.key, result.data);
-                } else {
-                    this.addData(result.data);
-                }
-            }
-        }
+        this.addResult(result);
         return result;
     }
 

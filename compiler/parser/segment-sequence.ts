@@ -21,7 +21,10 @@ export class SegmentSequence extends Segment {
 
     constructor(public name?: string) {
         super((tokenStream) => {
-            const result = new Result(tokenStream);
+            const result = new Result(tokenStream).setMatch(true);
+            if (this.astType && !result.type) {
+                result.setType(this.astType);
+            }
             // let progressMessage = '';
             for (const segment of this.segments) {
                 
@@ -31,7 +34,6 @@ export class SegmentSequence extends Segment {
                 }
                 else if (segmentResult.hasData()) {
                     result.addResult(segmentResult);
-                    console.log(JSON.stringify(result.data));
                 }
                 if (segmentResult.progressMessage) {
                     // progressMessage += `${segmentResult.progressMessage}\n`;
@@ -40,11 +42,7 @@ export class SegmentSequence extends Segment {
             const data = this.convertFunction(result.data);
             result.setData(data);
             // FIXME: Having a loss of type (-information)
-            if (this.astType && !result.type) {
-                result.setType(this.astType);
-            }
-            return result
-                .setMatch(true);
+            return result;
                 // .setProgressMessage(progressMessage);
         }, `Parser "${name ?? 'unnamed'}"`);
         // TODO: maybe register here
@@ -56,18 +54,23 @@ export class SegmentSequence extends Segment {
         return this;
     }
 
+    noType() {
+        this.type(null);
+        return this;
+    }
+
     expect(type: string, value: string) {
-        this.segment(Segments.expect(type, value));
+        this.parse(Segments.expect(type, value));
         return this;
     }
 
     expectType(type: string) {
-        this.segment(Segments.expectType(type));
+        this.parse(Segments.expectType(type));
         return this;
     }
 
     optional(parser: ResolveableSegment) {
-        this.segment(new Segment(tokenStream => {
+        this.parse(new Segment(tokenStream => {
             parser = this.resolveSegment(parser);
             const result = parser.run(tokenStream);
             if (!result.matched()) {
@@ -108,21 +111,20 @@ export class SegmentSequence extends Segment {
         return SegmentSequence.resolveSegment(segment);
     }
 
-    parse(parser: ResolveableSegment) {
-        this.segment(new Segment(tokenStream => {
-            parser = this.resolveSegment(parser);
-            return parser.run(tokenStream);
-        }, `.parse('${parser}')`));
-        return this;
-    }
-
-    segment(segment: Segment) {
-        this.segments.push(segment);
+    parse(segment: ResolveableSegment) {
+        if (typeof(segment) === 'string') {
+            this.segments.push(new Segment((tokenStream) => {
+                return this.resolveSegment(segment).run(tokenStream);
+            }));
+        } else {
+            this.segments.push(segment);
+        }
+        
         return this;
     }
 
     oneOf(...parsers: ResolveableSegment[]) {
-        this.segment(new Segment(tokenStream => {
+        this.parse(new Segment(tokenStream => {
             // If fails get the best one for good error description
             let bestProgress = -1;
             let bestResult = null;
@@ -132,13 +134,12 @@ export class SegmentSequence extends Segment {
             
             // Test all if one works
             for (const segment of allSegments) {
-                const progressCheckpoint = tokenStream.checkpoint();
                 const result = segment.run(tokenStream);
-                const progress = progressCheckpoint.progress;
+                const progress = result.progress;
                 if (result.matched()) {
                     return result;
                 } else {
-                    if (progress > 0 && bestProgress <= progress) {
+                    if (progress > 0 && bestProgress < progress) {
                         bestProgress = progress;
                         bestResult = result;
                     }
@@ -150,7 +151,7 @@ export class SegmentSequence extends Segment {
     }
 
     delimitted(from: Segment, to: Segment, seperator: Segment, parser: ResolveableSegment) {
-        this.segment(Segments.delimitted(from, to, seperator, parser));
+        this.parse(Segments.delimitted(from, to, seperator, parser));
         return this;
     }
 
@@ -160,7 +161,7 @@ export class SegmentSequence extends Segment {
     }
 
     untilEOF(parser: ResolveableSegment) {
-        this.segment(new Segment(tokenStream => {
+        this.parse(new Segment(tokenStream => {
             parser = this.resolveSegment(parser);
             return Segments.untilEOF(parser).run(tokenStream);
         }));
@@ -168,7 +169,7 @@ export class SegmentSequence extends Segment {
     }
 
     until(end: Segment, parser: ResolveableSegment) {
-        this.segment(new Segment(tokenStream => {
+        this.parse(new Segment(tokenStream => {
             parser = this.resolveSegment(parser);
             return Segments.until(end, parser).run(tokenStream);
         }));
@@ -178,7 +179,6 @@ export class SegmentSequence extends Segment {
     as(key: string) {
         if (this.segments.length) {
             this.segments[this.segments.length - 1].as(key);
-            console.log(`set ${this.segments[this.segments.length - 1].debuggingCode} as ${key}`);
         }
         return this;
     }

@@ -79,6 +79,7 @@ export class TokenStreamCheckpoint {
     revert() {
         this.inputStreamCheckpoint.revert();
         this.tokenStream.current = null;
+        this.tokenStream.updateCheckpoint();
     }
 }
 
@@ -87,13 +88,12 @@ export class TokenStream {
     constructor(public inputStream: InputStream,
                 private layouts: TokenLayout[],
                 private skipTokens: string[] = []) {
-
+        this.updateCheckpoint();
     }
 
 
     public current: Token = null;
-
-
+    private currentCheckpoint: TokenStreamCheckpoint;
     
     private read_next(): Token {
         for (const layout of this.layouts) {
@@ -121,14 +121,20 @@ export class TokenStream {
     next() {
         const tmp = this.current;
         this.current = null;
-        return tmp ?? this.read_next();
+        const result = tmp ?? this.read_next();
+        this.updateCheckpoint();
+        return result;
     }
 
     eof() {
         return !this.peek();
     }
 
+    updateCheckpoint() {
+        this.currentCheckpoint = new TokenStreamCheckpoint(this, this.inputStream.checkpoint());
+    }
+
     checkpoint() {
-        return new TokenStreamCheckpoint(this, this.inputStream.checkpoint());
+        return this.currentCheckpoint;
     }
 }
