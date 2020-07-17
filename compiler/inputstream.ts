@@ -15,6 +15,13 @@ export class InputStreamCheckpoint {
         this.inputStream.line = this.line;
         this.inputStream.column = this.column;
     }
+
+    toJSON() {
+        return {
+            line: this.line,
+            column: this.column
+        }
+    }
 }
 
 

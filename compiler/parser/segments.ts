@@ -15,6 +15,7 @@ export const Segments = {
                 .setMatch(matched)
                 .setFailInfo(failMessage)
                 .setProgressMessage(`got ${type} ${value}`);
+                // .setData(token.value)
         }, `.expect('${type}', '${value}')`);
     },
     expectType(type: string): Segment {
@@ -27,10 +28,10 @@ export const Segments = {
                 .setMatch(matched)
                 .setFailInfo(failMessage)
                 .setProgressMessage(`got ${type} ${token.value} as ${context.key ?? 'unnamed'}`)
-                .setData(token);
+                .setData(token.value)
         }, `.expectType('${type}')`);
     },
-    maybe(type: string, value: string, key?: string): Segment {
+    maybe(type: string, value: string): Segment {
         return new Segment((tokenStream) => {
             const token = tokenStream.peek();
             const skip = token.value === value && token.type === type;
@@ -42,8 +43,28 @@ export const Segments = {
 
             return new Result(tokenStream)
                 .setMatch(matched)
-                .add(key, token);
+                .setData(token.value)
         });
+    },
+    doIf(condition: Segment, then: Segment): Segment {
+        return new Segment((tokenStream) => {
+            const checkpoint = tokenStream.checkpoint();
+            const result = condition.run(tokenStream);
+            checkpoint.revert();
+            if (result.matched()) {
+                return then.run(tokenStream);
+            }
+            return new Result(tokenStream).setMatch(true);
+        });
+    },
+    skip() {
+        return new Segment((tokenStream) => {
+            tokenStream.next();
+            return new Result(tokenStream).setMatch(true)
+        });
+    },
+    doIfType(type: string, then: Segment) {
+        return Segments.doIf(Segments.expectType(type), then);
     },
     doesntMatter(): Segment {
         return new Segment((tokenStream) => new Result(tokenStream).setMatch(true));

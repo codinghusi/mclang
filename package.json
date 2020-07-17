@@ -4,9 +4,11 @@
   "description": "",
   "main": "index.js",
   "dependencies": {
-    "typescript": "^3.9.6"
+    "typescript": "^3.9.6"    
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "@types/node": "^14.0.23"
+  },
   "scripts": {
     "start": "ts-node compiler/compiler.ts"
   },

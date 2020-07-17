@@ -1,6 +1,6 @@
 import { InputStream, InputStreamCheckpoint } from './inputstream';
 
-interface Token {
+export interface Token {
     type: string;
     value: number | string;
     line: number,
@@ -80,6 +80,10 @@ export class TokenStreamCheckpoint {
         this.inputStreamCheckpoint.revert();
         this.tokenStream.current = null;
         this.tokenStream.updateCheckpoint();
+    }
+
+    toJSON() {
+        return this.inputStreamCheckpoint.toJSON();
     }
 }
 

@@ -1,13 +1,65 @@
 import { InputStream } from "./inputstream";
-import { TokenStream } from './tokenstream';
+import { TokenStream, Token } from './tokenstream';
 import { TokenLayout, TokenPattern } from './tokenstream';
 import { SegmentSequence } from './parser/segment-sequence';
 import { Segments } from "./parser/segments";
 import { Segment } from "./parser/segment";
 import { Parser } from "./parser/parser";
+import { Result } from "./parser/result";
 
-function name(key: string): Segment {
-    return Segments.expectType('identifier').as(key);
+import * as fs from 'fs';
+
+const OPERATORS = [
+    ['=', '+=', '-=', '/=', '*=', '%='],
+    ['||'],
+    ['&&'],
+    ['<', '>', '<=', '>=', '==', '!='],
+    ['+', '-'],
+    ['*', '/', '%']
+];
+
+function precendence(operator: string) {
+    return OPERATORS.findIndex(ops => ops.includes(operator));
+}
+
+function next_operation(firstPrecendence: number, left: any): Segment {
+    return new Segment((tokenStream) => {
+        
+        const result = new Result(tokenStream);
+        console.log(`next_operation(prec: ${firstPrecendence}, left: ${JSON.stringify(left)})`);
+
+        const operatorToken = tokenStream.peek();
+        if (operatorToken.type === 'operator') {
+            const secondPrecendence = precendence(operatorToken.value as string);
+            
+            if (firstPrecendence < secondPrecendence) {
+                tokenStream.next();
+                const rightValueResult = SegmentSequence.resolveSegment('expression').run(tokenStream);
+                if (!rightValueResult.matched()) {
+                    return rightValueResult.setFailInfo(null, result);
+                }
+                const rightToken = rightValueResult.data;
+
+                const rightResult = next_operation(
+                    secondPrecendence,
+                    rightToken as Token
+                ).run(tokenStream);
+                if (!rightResult.matched()) {
+                    return rightResult.setFailInfo(null, result);
+                }   
+                const right = rightResult.data;
+
+                const data = {
+                    type: 'operation',
+                    operator: operatorToken,
+                    left,
+                    right
+                };
+                return next_operation(firstPrecendence, data).run(tokenStream);
+            }
+        }
+        return result.setData(left).setMatch(true);
+    });
 }
 
 function punctuation(value: string): Segment {
@@ -30,18 +82,52 @@ const entrypoint = new SegmentSequence('entrypoint')
         .parse('command').as('execution')
     )
 
+    // FIXME: there comes no type for expression
+    .register(new SegmentSequence('expression')
+        .oneOf(
+            'operation',
+            'value',
+            new SegmentSequence()
+                .between(punctuation('('), punctuation(')'), 'expression'),
+            'function'
+        )
+        .optional(new SegmentSequence('function_call')
+            .delimitted(punctuation('('), punctuation(')'), punctuation(','), new SegmentSequence('parameter')
+                .parse('expression').as('value')
+            ).as('parameters')
+        ).as('function_call')
+    )
+
+    .register(new SegmentSequence('operation')
+        .parse('value').as('left')
+        .parse(new Segment((tokenStream, context, result) => {
+            const left = result.data.left;
+            const operation = next_operation(-1, left).run(tokenStream);
+            if (!('right' in operation.data)) {
+                return new Result(tokenStream).setMatch(false);
+            }
+            return operation;
+        }))
+    )
     .register(new SegmentSequence('value')
         .oneOf(
-            new SegmentSequence('number').expectType('number').as('value'),
-            new SegmentSequence('string').expectType('string').as('value')
-        ).as('value')
+            new SegmentSequence()
+                .expectType('number').as('value')
+                .add('valuetype', 'number'),
+            new SegmentSequence()
+                .expectType('string').as('value')
+                .add('valuetype', 'string'),
+            new SegmentSequence()
+                .expectType('identifier').as('value')
+                .add('valuetype', 'variable'),
+        )
     )
 
     .register(new SegmentSequence('argument')
         .expectType('identifier').as('name')
         .optional(new SegmentSequence()
             .expect('operator', '=')
-            .parse('value').as('default')
+            .parse('expression').as('default')
         )
     )
 
@@ -62,23 +148,17 @@ const entrypoint = new SegmentSequence('entrypoint')
         .expectType('identifier').as('name')
         .optional(new SegmentSequence()
             .parse(operator('='))
-            .parse('value').as('init')
+            .parse('expression').as('init')
         )
         .expect('punctuation', ';')
     )
 
-    .register(new SegmentSequence('expression')
-        .parse(Segments.dont())
-    )
-
     .register(new SegmentSequence('command')
-        .oneOf('if', 'function', 'codeblock', 'let')
+        .oneOf('if', 'function', 'codeblock', 'let', 'expression')
     )
 
     .register(new SegmentSequence('codeblock')
-        // TODO: create a .between()
-        .parse(punctuation('{'))
-        .until(punctuation('}'), 'command').as('commands')
+        .between(punctuation('{'), punctuation('}'), 'command').as('commands')
     )
 
     // start
@@ -128,7 +208,7 @@ function compile(code: string) {
             TokenPattern.OneOf(",;(){}[]"),
         ]),
         new TokenLayout('operator', [
-            TokenPattern.OneOfEntry([ '+', '-', '*', '/', '%', '=', '+=', '-=', '/=', '*=', '%=', '<', '>', '>=', '<=', '==', '!=', '&&', '||', '=>' ]),
+            TokenPattern.OneOfEntry([].concat(...OPERATORS)),
         ]),
     ], ['whitespace', 'comment']);
 
@@ -136,6 +216,8 @@ function compile(code: string) {
     const ast = parser.parse(tokenStream);
     console.log(`######################## Result ###########`)
     console.log(JSON.stringify(ast, null, 2));
+
+    fs.writeFile('output.json', JSON.stringify(ast, null, 2), (err: any) => {if (err) console.error(err)});
 
 }
 
@@ -155,6 +237,6 @@ function compile(code: string) {
 
 compile(`
 function test(firstArg = 5, secondArg = "hi") {
-    let foo = 'bar';
+    let foo = 1 * 2 + 3 * 4 + 10;
 }
 `)

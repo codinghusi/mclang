@@ -1,4 +1,4 @@
-import { TokenStream } from "../tokenstream";
+import { TokenStream, Token } from "../tokenstream";
 import { Segment } from "./segment";
 import { Result } from "./result";
 import { Segments } from "./segments";
@@ -22,13 +22,13 @@ export class SegmentSequence extends Segment {
     constructor(public name?: string) {
         super((tokenStream) => {
             const result = new Result(tokenStream).setMatch(true);
-            if (this.astType && !result.type) {
+            if (this.astType) {
                 result.setType(this.astType);
             }
             // let progressMessage = '';
             for (const segment of this.segments) {
                 
-                const segmentResult = segment.run(tokenStream);
+                const segmentResult = segment.run(tokenStream, result);
                 if (!segmentResult.matched()) {
                     return segmentResult.setFailInfo(null, result);
                 }
@@ -123,6 +123,28 @@ export class SegmentSequence extends Segment {
         return this;
     }
 
+    debug(message: string) {
+        this.parse(new Segment((tokenStream) => (console.log(message),new Result(tokenStream).setMatch(true))))
+        return this;
+    }
+
+    breakpoint() {
+        this.parse(new Segment((tokenStream) => {
+            debugger;
+            return new Result(tokenStream).setMatch(true);
+        }));
+        return this;
+    }
+
+    add(key: string, value: any) {
+        this.parse(new Segment((tokenStream) => {
+            return new Result(tokenStream)
+                .add(key, value)
+                .setMatch(true);
+        }));
+        return this;
+    }
+
     oneOf(...parsers: ResolveableSegment[]) {
         this.parse(new Segment(tokenStream => {
             // If fails get the best one for good error description
@@ -155,6 +177,8 @@ export class SegmentSequence extends Segment {
         return this;
     }
 
+    
+
     convert(convertFn: (raw: any) => any) {
         this.convertFunction = convertFn;
         return this;
@@ -176,9 +200,49 @@ export class SegmentSequence extends Segment {
         return this;
     }
 
+    between(from: Segment, to: Segment, parser: ResolveableSegment) {
+        this.parse(new SegmentSequence()
+            .parse(from)
+            .until(to, parser)
+        );
+        return this;
+    }
+
+    doIf(condition: ResolveableSegment, then: ResolveableSegment) {
+        this.parse(new Segment(tokenStream => {
+            const parserCondition = this.resolveSegment(condition);
+            const parserThen = this.resolveSegment(then);
+            return Segments.doIf(parserCondition, parserThen).run(tokenStream);
+        }));
+        return this;
+    }
+
+    continueIfType(type: string, then: ResolveableSegment) {
+        this.parse(new Segment(tokenStream => {
+            const parserThen = this.resolveSegment(then);
+            return Segments.doIfType(type, parserThen).run(tokenStream);
+        }));
+        return this;
+    }
+
+    skip() {
+        this.parse(Segments.skip());
+        return this;
+    }
+
+    setKey(key: string) {
+        super.as(key);
+        return this;
+    }
+
     as(key: string) {
         if (this.segments.length) {
-            this.segments[this.segments.length - 1].as(key);
+            const segment = this.segments[this.segments.length - 1];
+            if (segment instanceof SegmentSequence) {
+                segment.setKey(key);
+            } else {
+                segment.as(key);
+            }
         }
         return this;
     }
