@@ -18,24 +18,23 @@ export class Result {
     constructor(private tokenStream: TokenStream) { }
 
     get data() {
-        if (this.matched()) {
-            if (this.key) {
-                if (this.type && typeof(this._data) === 'object') {
-                    return {
-                        [this.key]: {
-                            type: this.type,
-                            ...this._data,
-                            reference: this.reference
-                        }
-                    }
-                }
-                return {
-                    [this.key]: this._data
-                }
-            }
-            return this._data;
+        if (!this.matched()) {
+            return null;
         }
-        return null;
+        let data = this._data;
+        if (this.type && typeof(this._data) === 'object') {
+            data = {
+                type: this.type,
+                ...this._data,
+                reference: this.reference
+            }
+        }
+        if (this.key) {
+            return {
+                [this.key]: data
+            }
+        }
+        return data;
     }
 
     private updateData() {
@@ -111,8 +110,9 @@ export class Result {
     setData(data: any) {
         this._data = data;
         this._hasData = true;
-        console.log(`set data: ${JSON.stringify(data, null, 2)}`);
-        
+        if (this.type === 'condition' || this.type === 'if') {
+            console.log('if', this.data);
+        }
         return this;
     }
 

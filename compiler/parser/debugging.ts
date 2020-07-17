@@ -20,7 +20,7 @@ export class ParserDebugger {
         if (tabsStr.length >= max) {
              tabsStr += '>>> ';
         }
-        console.log(tabsStr + code);
+        // console.log(tabsStr + code);
         fs.appendFile('debugging.txt', tabsStr + code + '\n', () => {});
     }
 

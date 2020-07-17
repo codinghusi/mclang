@@ -74,12 +74,14 @@ function operator(value: string): Segment {
 const entrypoint = new SegmentSequence('entrypoint')
     
     .register(new SegmentSequence('condition')
-        .delimitted(punctuation('('), punctuation(')'), Segments.doesntMatter(), 'expression')
+        .expect('punctuation', '(')
+        .parse('expression')
+        .expect('punctuation', ')')
     )
     .register(new SegmentSequence('if')
         .expect('keyword', 'if')
         .parse('condition').as('condition')
-        .parse('command').as('execution')
+        .parse('command').as('then') 
     )
 
     // FIXME: there comes no type for expression
@@ -118,6 +120,9 @@ const entrypoint = new SegmentSequence('entrypoint')
                 .expectType('string').as('value')
                 .add('valuetype', 'string'),
             new SegmentSequence()
+                .expectOneOf('keyword', ['true', 'false']).as('value')
+                .add('valuetype', 'boolean'),
+            new SegmentSequence()
                 .expectType('identifier').as('value')
                 .add('valuetype', 'variable'),
         )
@@ -150,11 +155,16 @@ const entrypoint = new SegmentSequence('entrypoint')
             .parse(operator('='))
             .parse('expression').as('init')
         )
-        .expect('punctuation', ';')
     )
 
     .register(new SegmentSequence('command')
-        .oneOf('if', 'function', 'codeblock', 'let', 'expression')
+        .oneOf(
+            new SegmentSequence()
+                .oneOf('if', 'function', 'codeblock'),
+            new SegmentSequence()
+                .oneOf('let', 'expression')
+                .parse(punctuation(';'))
+        )
     )
 
     .register(new SegmentSequence('codeblock')
@@ -214,8 +224,8 @@ function compile(code: string) {
 
     const parser = new Parser(entrypoint);
     const ast = parser.parse(tokenStream);
-    console.log(`######################## Result ###########`)
-    console.log(JSON.stringify(ast, null, 2));
+    // console.log(`######################## Result ###########`)
+    // console.log(JSON.stringify(ast, null, 2));
 
     fs.writeFile('output.json', JSON.stringify(ast, null, 2), (err: any) => {if (err) console.error(err)});
 
@@ -238,5 +248,9 @@ function compile(code: string) {
 compile(`
 function test(firstArg = 5, secondArg = "hi") {
     let foo = 1 * 2 + 3 * 4 + 10;
+
+    if (true && foo > 3) {
+        log('working!');
+    }
 }
 `)

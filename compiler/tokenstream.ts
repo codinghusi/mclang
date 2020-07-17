@@ -8,7 +8,7 @@ export interface Token {
 }
 
 type TokenParser = (inputStream: InputStream) => string
-type TokenValue = string | number;
+export type TokenValue = string | number;
 
 
 export const TokenPattern = {

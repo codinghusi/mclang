@@ -1,4 +1,4 @@
-import { TokenStream, Token } from "../tokenstream";
+import { TokenStream, Token, TokenValue } from "../tokenstream";
 import { Segment } from "./segment";
 import { Result } from "./result";
 import { Segments } from "./segments";
@@ -66,6 +66,11 @@ export class SegmentSequence extends Segment {
 
     expectType(type: string) {
         this.parse(Segments.expectType(type));
+        return this;
+    }
+
+    expectOneOf(type: string, values: TokenValue[]) {
+        this.parse(Segments.expectOneOf(type, values));
         return this;
     }
 

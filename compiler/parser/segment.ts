@@ -20,6 +20,10 @@ export class Segment {
         result.setProgress(checkpoint.progress);
         if (!result.matched() && !this._dontSkip || this._doSkip) {
             checkpoint.revert();
+            if (!result.failMessage) {
+                const token = tokenStream.peek();
+                result.setFailInfo(`Unexpected ${token.type} ${token.value}`);
+            }
         } else {
             if (this.key) {
                 result.setKey(this.key);

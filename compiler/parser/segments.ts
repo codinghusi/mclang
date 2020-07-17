@@ -1,6 +1,7 @@
 import { Segment } from './segment';
 import { Result } from './result';
 import { SegmentSequence, ResolveableSegment } from './segment-sequence';
+import { TokenValue } from '../tokenstream';
 
 // TODO: make some interfaces for all AST Nodes
 
@@ -14,7 +15,6 @@ export const Segments = {
             return new Result(tokenStream)
                 .setMatch(matched)
                 .setFailInfo(failMessage)
-                .setProgressMessage(`got ${type} ${value}`);
                 // .setData(token.value)
         }, `.expect('${type}', '${value}')`);
     },
@@ -27,9 +27,20 @@ export const Segments = {
             return new Result(tokenStream)
                 .setMatch(matched)
                 .setFailInfo(failMessage)
-                .setProgressMessage(`got ${type} ${token.value} as ${context.key ?? 'unnamed'}`)
                 .setData(token.value)
         }, `.expectType('${type}')`);
+    },
+    expectOneOf(type: string, values: TokenValue[]) {
+        return new Segment((tokenStream) => {
+            const token = tokenStream.next();
+            const failMessage = `Expected one of ${values} of type ${type} but only got ${token.type} ${token.value}`;
+            const matched = token.type === type && values.includes(token.value);
+
+            return new Result(tokenStream)
+                .setMatch(matched)
+                .setFailInfo(failMessage)
+                .setData(token.value)
+        }, `.expectOneOf('${type}', '[${values}]')`);
     },
     maybe(type: string, value: string): Segment {
         return new Segment((tokenStream) => {
