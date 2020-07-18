@@ -105,6 +105,22 @@ const entrypoint = new SegmentSequence('entrypoint')
             ).as('parameters')
     )
 
+    .register(new SegmentSequence('accessor')
+        .noType()
+        .oneOf(
+            SegmentSequence.resolveSegment('functionCall').setKey('functionCall'),
+            // TODO: add array access
+        ))
+
+    .register(new SegmentSequence('chainable')
+        .expectType('identifier').as('key')
+        .optional('accessor')
+        .optional(new SegmentSequence()
+            .expect('punctuation', '.')
+            .parse('chainable').as('chain')
+        )
+    )
+
     .register(new SegmentSequence('expression')
         .oneOf(
             'instanciation',
@@ -114,7 +130,11 @@ const entrypoint = new SegmentSequence('entrypoint')
                 .between(punctuation('('), punctuation(')'), 'expression'),
             'function'
         )
-        .optional('functionCall').as('functionCall')
+        .optional('accessor')
+        .optional(new SegmentSequence()
+            .expect('punctuation', '.')
+            .parse('chainable').as('chain')
+        )
     )
 
     .register(new SegmentSequence('operation')
@@ -179,8 +199,12 @@ const entrypoint = new SegmentSequence('entrypoint')
         .parse('functionBody')
     )
 
-    .register(new SegmentSequence('variableBody')
+    .register(new SegmentSequence('declarationBody')
         .expectType('identifier').as('name')
+        .optional(new SegmentSequence()
+            .expect('punctuation', '.')
+            .expectType('identifier').as('accessedKey')
+        )
         .optional(new SegmentSequence()
             .parse(operator('='))
             .parse('expression').as('init')
@@ -189,12 +213,12 @@ const entrypoint = new SegmentSequence('entrypoint')
 
     .register(new SegmentSequence('let')
         .expect('keyword', 'let')
-        .parse('variableBody').as('variable')
+        .parse('declarationBody').as('variable')
     )
 
     .register(new SegmentSequence('const')
         .expect('keyword', 'const')
-        .parse('variableBody').as('variable')
+        .parse('declarationBody').as('variable')
     )
 
     .register(new SegmentSequence('class')
@@ -204,7 +228,7 @@ const entrypoint = new SegmentSequence('entrypoint')
             .oneOf(
                 'functionBody',
                 new SegmentSequence()
-                    .parse('variableBody')
+                    .parse('declarationBody')
                     .expect('punctuation', ';')
             )
         ).as('body')
@@ -274,7 +298,7 @@ function compile(code: string) {
             return token;
         }),
         new TokenLayout('punctuation', [
-            TokenPattern.OneOf(",;(){}[]"),
+            TokenPattern.OneOf(".,;(){}[]"),
         ]),
         new TokenLayout('operator', [
             TokenPattern.OneOfEntry([].concat(...TWO_HAND_OPERATORS, ...PRE_OPERATORS, ...POST_OPERATORS)),
@@ -314,6 +338,7 @@ class Location {
 
     constructor(asdf = 1, lol = 2) {
         const foo = 'bar';
+        blub = one().two.three().four;
     }
 
     foo() {
@@ -322,7 +347,8 @@ class Location {
 }
 
 function test(firstArg = 5, secondArg = "hi") {
-    let foo = 1 * 2 + -3 * 4 + 10;
+    const entity = '@asdf'; // entities not working yet
+    let entity.var = 1 * 2 + -3 * 4 + 10;
 
     if (!true && foo-- > 3) {
         log('working!');

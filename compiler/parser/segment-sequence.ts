@@ -9,6 +9,8 @@ export class SegmentSequence extends Segment {
     private segments: Segment[] = [];
     private astType: string;
 
+    private lastSegment: Segment = this;
+
     private convertFunction = (raw: any) => {
         return raw;
     };
@@ -27,7 +29,6 @@ export class SegmentSequence extends Segment {
             }
             // let progressMessage = '';
             for (const segment of this.segments) {
-                
                 const segmentResult = segment.run(tokenStream, result);
                 if (!segmentResult.matched()) {
                     return segmentResult.setFailInfo(null, result);
@@ -95,7 +96,7 @@ export class SegmentSequence extends Segment {
         return SegmentSequence.sequences.find(segment => segment.name === name);
     }
 
-    static resolveSegment(segment: ResolveableSegment) {
+    static resolveSegment(segment: ResolveableSegment): SegmentSequence {
         if (!segment) {
              throw new Error(`Parser is not defined`);
         } else if (typeof(segment) === 'string') {
@@ -109,7 +110,7 @@ export class SegmentSequence extends Segment {
 
             // this.register(parser);
         }
-        return segment;
+        return segment as SegmentSequence;
     }
 
     resolveSegment(segment: ResolveableSegment) {
@@ -118,11 +119,14 @@ export class SegmentSequence extends Segment {
 
     parse(segment: ResolveableSegment) {
         if (typeof(segment) === 'string') {
-            this.segments.push(new Segment((tokenStream) => {
+            const resolvedSegment = new Segment((tokenStream) => {
                 return this.resolveSegment(segment).run(tokenStream);
-            }));
+            });
+            this.segments.push(resolvedSegment);
+            this.lastSegment = resolvedSegment;
         } else {
             this.segments.push(segment);
+            this.lastSegment = segment;
         }
         
         return this;
@@ -240,14 +244,11 @@ export class SegmentSequence extends Segment {
         return this;
     }
 
-    as(key: string) {
-        if (this.segments.length) {
-            const segment = this.segments[this.segments.length - 1];
-            if (segment instanceof SegmentSequence) {
-                segment.setKey(key);
-            } else {
-                segment.as(key);
-            }
+    as(key: string): this {
+        if (this.lastSegment === this) {
+            this.setKey(key);
+        } else {
+            this.lastSegment.as(key);
         }
         return this;
     }

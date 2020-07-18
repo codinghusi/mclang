@@ -10,7 +10,6 @@ export interface Token {
 type TokenParser = (inputStream: InputStream) => string
 export type TokenValue = string | number;
 
-
 export const TokenPattern = {
     Between(from: string, to: string, escaping: string = null) {
         return (inputStream: InputStream) => {
@@ -118,8 +117,13 @@ export class TokenStream {
             }
         };
 
-        // If nothing worked
-        throw new Error(`Unexpected Character ${this.inputStream.peek()}`);
+        // If nothing worked return unknown so that jsfunction can work with unknown chars
+        return {
+            type: 'unknown',
+            value: this.inputStream.next(),
+            line: this.inputStream.line,
+            column: this.inputStream.column
+        };
     }
 
     peek() {
