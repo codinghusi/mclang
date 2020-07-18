@@ -31,8 +31,8 @@ num = 5; // error
 
 # Objects
 
-let location = Location(~, ~, ~1);
-const block = Block(location);
+let location = new Location(~, ~, ~1);
+const block = new Block(location);
 
 location.x += 1;
 placeBlock(block, location);

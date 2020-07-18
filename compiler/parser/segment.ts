@@ -2,6 +2,7 @@ import { TokenStream } from "../tokenstream";
 import { Result } from "./result";
 import { ParserDebugger } from './debugging';
 import { Reference } from "./reference";
+import { InputStreamCheckpoint } from '../inputstream';
 
 export class Segment {
     public key: string;
@@ -17,14 +18,22 @@ export class Segment {
         }
         const checkpoint = tokenStream.checkpoint();
         const result = this.fn(tokenStream, this, data);
+        
+        if (!result.position) {
+            result.setPosition(tokenStream.inputStream.checkpoint());
+        }
+        
         result.setProgress(checkpoint.progress);
-        if (!result.matched() && !this._dontSkip || this._doSkip) {
-            checkpoint.revert();
+        if (!result.matched()) {
             if (!result.failMessage) {
                 const token = tokenStream.peek();
                 result.setFailInfo(`Unexpected ${token.type} ${token.value}`);
             }
-        } else {
+            if (!this._dontSkip || this._doSkip) {
+                checkpoint.revert();
+            }
+        }
+        else {
             if (this.key) {
                 result.setKey(this.key);
             }

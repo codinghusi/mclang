@@ -45,22 +45,23 @@ export const TokenPattern = {
 export class TokenLayout {
     constructor(private type: string,
                 private parsers: TokenParser[],
-                private conversion?: (value: string) => TokenValue) {
+                private conversion?: (token: Token) => Token) {
     }
 
     read(inputStream: InputStream): Token {
         for (const parser of this.parsers) {
             let value: TokenValue = parser(inputStream);
             if (value) {
-                if (this.conversion) {
-                    value = this.conversion(value);
-                }
-                return {
+                const token = {
                     type: this.type,
                     value,
                     line: inputStream.line,
                     column: inputStream.column
                 };
+                if (this.conversion) {
+                    return this.conversion(token);
+                }
+                return token;
             }
         };
         return null;
@@ -70,7 +71,9 @@ export class TokenLayout {
 
 export class TokenStreamCheckpoint {
     constructor(private tokenStream: TokenStream,
-                private inputStreamCheckpoint: InputStreamCheckpoint) {}
+                private inputStreamCheckpoint: InputStreamCheckpoint) {
+                    console.log('new checkpoint at ' + inputStreamCheckpoint.line + ':' + inputStreamCheckpoint.column + ', ' + inputStreamCheckpoint.position);
+                }
     
     get progress() {
         return this.tokenStream.inputStream.position - this.inputStreamCheckpoint.position;
@@ -80,6 +83,7 @@ export class TokenStreamCheckpoint {
         this.inputStreamCheckpoint.revert();
         this.tokenStream.current = null;
         this.tokenStream.updateCheckpoint();
+        console.log('reverted to ' + this.inputStreamCheckpoint.line + ':' + this.inputStreamCheckpoint.column + ', ' + this.inputStreamCheckpoint.position);
     }
 
     toJSON() {
@@ -108,7 +112,7 @@ export class TokenStream {
             const token = layout.read(this.inputStream);
             if (token) {
                 if (this.skipTokens.some(type => type === token.type)) {
-                    continue;
+                    return this.read_next();
                 }
                 return token;
             }

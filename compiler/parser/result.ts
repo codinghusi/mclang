@@ -1,6 +1,7 @@
-import { TokenStream, Token } from "../tokenstream";
+import { TokenStream, Token, TokenStreamCheckpoint } from '../tokenstream';
 import { ResolveableSegment, SegmentSequence } from './segment-sequence';
 import { Reference } from "./reference";
+import { InputStreamCheckpoint } from '../inputstream';
 
 export class Result {
     private _matched = false;
@@ -13,6 +14,7 @@ export class Result {
     public type: string;
     public progressMessage: string;
     public reference: Reference;
+    public position: InputStreamCheckpoint; 
 
     /* TODO: remove TokenStream from here */
     constructor(private tokenStream: TokenStream) { }
@@ -43,6 +45,11 @@ export class Result {
             ...this._data,
             // reference: this.reference
         };
+        return this;
+    }
+
+    setPosition(position: InputStreamCheckpoint) {
+        this.position = position;
         return this;
     }
 

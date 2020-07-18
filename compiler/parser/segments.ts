@@ -33,7 +33,7 @@ export const Segments = {
     expectOneOf(type: string, values: TokenValue[]) {
         return new Segment((tokenStream) => {
             const token = tokenStream.next();
-            const failMessage = `Expected one of ${values} of type ${type} but only got ${token.type} ${token.value}`;
+            const failMessage = `Expected one of ${values} of type ${type} but got ${token.type} ${token.value}`;
             const matched = token.type === type && values.includes(token.value);
 
             return new Result(tokenStream)
@@ -91,6 +91,9 @@ export const Segments = {
     },
     until(end: Segment, parser: Segment): Segment {
         return Segments.delimitted(Segments.doesntMatter(), end, Segments.doesntMatter(), parser);
+    },
+    between(start: Segment, end: Segment, parser: Segment): Segment {
+        return Segments.delimitted(start, end, Segments.doesntMatter(), parser);
     },
     untilEOF(parser: Segment): Segment {
         return new Segment((tokenStream) => {

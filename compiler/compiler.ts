@@ -9,7 +9,7 @@ import { Result } from "./parser/result";
 
 import * as fs from 'fs';
 
-const OPERATORS = [
+const TWO_HAND_OPERATORS = [
     ['=', '+=', '-=', '/=', '*=', '%='],
     ['||'],
     ['&&'],
@@ -18,15 +18,25 @@ const OPERATORS = [
     ['*', '/', '%']
 ];
 
+const PRE_OPERATORS = [
+    '+', '-', '++', '--',
+    '!', '~'
+];
+
+const POST_OPERATORS = [
+    '++', '--'
+];
+
+const KEYWORDS = [ 'let', 'const', 'listen', 'event', 'if', 'else', 'true', 'false', 'function', 'class', 'for', 'forEach', 'function', 'new' ];
+
 function precendence(operator: string) {
-    return OPERATORS.findIndex(ops => ops.includes(operator));
+    return TWO_HAND_OPERATORS.findIndex(ops => ops.includes(operator));
 }
 
 function next_operation(firstPrecendence: number, left: any): Segment {
     return new Segment((tokenStream) => {
         
         const result = new Result(tokenStream);
-        console.log(`next_operation(prec: ${firstPrecendence}, left: ${JSON.stringify(left)})`);
 
         const operatorToken = tokenStream.peek();
         if (operatorToken.type === 'operator') {
@@ -81,23 +91,30 @@ const entrypoint = new SegmentSequence('entrypoint')
     .register(new SegmentSequence('if')
         .expect('keyword', 'if')
         .parse('condition').as('condition')
-        .parse('command').as('then') 
+        .parse('command').as('then')
+        .optional(new SegmentSequence()
+            .expect('keyword', 'else')
+            .parse('command').as('else')
+        )
     )
 
-    // FIXME: there comes no type for expression
+    .register(
+        new SegmentSequence('functionCall')
+            .delimitted(punctuation('('), punctuation(')'), punctuation(','), new SegmentSequence('parameter')
+                .parse('expression').as('value')
+            ).as('parameters')
+    )
+
     .register(new SegmentSequence('expression')
         .oneOf(
+            'instanciation',
             'operation',
             'value',
             new SegmentSequence()
                 .between(punctuation('('), punctuation(')'), 'expression'),
             'function'
         )
-        .optional(new SegmentSequence('function_call')
-            .delimitted(punctuation('('), punctuation(')'), punctuation(','), new SegmentSequence('parameter')
-                .parse('expression').as('value')
-            ).as('parameters')
-        ).as('function_call')
+        .optional('functionCall').as('functionCall')
     )
 
     .register(new SegmentSequence('operation')
@@ -112,6 +129,9 @@ const entrypoint = new SegmentSequence('entrypoint')
         }))
     )
     .register(new SegmentSequence('value')
+        .optional(
+            Segments.expectOneOf('operator', PRE_OPERATORS).as('preOperator')
+        )
         .oneOf(
             new SegmentSequence()
                 .expectType('number').as('value')
@@ -126,10 +146,14 @@ const entrypoint = new SegmentSequence('entrypoint')
                 .expectType('identifier').as('value')
                 .add('valuetype', 'variable'),
         )
+        .optional(
+            Segments.expectOneOf('operator', POST_OPERATORS).as('postOperator')
+        )
     )
 
     .register(new SegmentSequence('argument')
         .expectType('identifier').as('name')
+        .debug('argument name')
         .optional(new SegmentSequence()
             .expect('operator', '=')
             .parse('expression').as('default')
@@ -138,18 +162,24 @@ const entrypoint = new SegmentSequence('entrypoint')
 
     .register(new SegmentSequence('arguments')
         .noType()
-        .delimitted(punctuation('('), punctuation(')'), punctuation(','), 'argument').as('arguments')
+        .delimitted(punctuation('('), punctuation(')'), punctuation(','), 'argument')
+    )
+
+    .register(new SegmentSequence('functionBody')
+        .expectType('identifier').as('name')
+        .debug('functionBody: name')
+        .parse('arguments').as('arguments')
+        .debug('functionBody: args')
+        .parse('codeblock').as('body')
+        .debug('functionBody: body')
     )
 
     .register(new SegmentSequence('function')
         .expect('keyword', 'function')
-        .expectType('identifier').as('name')
-        .parse('arguments')
-        .parse('codeblock').as('body')
+        .parse('functionBody')
     )
 
-    .register(new SegmentSequence('let')
-        .expect('keyword', 'let')
+    .register(new SegmentSequence('variableBody')
         .expectType('identifier').as('name')
         .optional(new SegmentSequence()
             .parse(operator('='))
@@ -157,13 +187,43 @@ const entrypoint = new SegmentSequence('entrypoint')
         )
     )
 
+    .register(new SegmentSequence('let')
+        .expect('keyword', 'let')
+        .parse('variableBody').as('variable')
+    )
+
+    .register(new SegmentSequence('const')
+        .expect('keyword', 'const')
+        .parse('variableBody').as('variable')
+    )
+
+    .register(new SegmentSequence('class')
+        .expect('keyword', 'class')
+        .expectType('identifier').as('name')
+        .between(punctuation('{'), punctuation('}'), new SegmentSequence()
+            .oneOf(
+                'functionBody',
+                new SegmentSequence()
+                    .parse('variableBody')
+                    .expect('punctuation', ';')
+            )
+        ).as('body')
+    )
+
+    .register(new SegmentSequence('instanciation')
+        .expect('keyword', 'new')
+        .expectType('identifier').as('class')
+        .parse('functionCall').as('call')
+    )
+
+
     .register(new SegmentSequence('command')
         .oneOf(
             new SegmentSequence()
-                .oneOf('if', 'function', 'codeblock'),
+                .oneOf('if', 'function', 'class', 'codeblock'),
             new SegmentSequence()
-                .oneOf('let', 'expression')
-                .parse(punctuation(';'))
+                .oneOf('let', 'const', 'expression')
+                .expect('punctuation', ';')
         )
     )
 
@@ -201,33 +261,36 @@ function compile(code: string) {
         ]),
         new TokenLayout('number', [
             TokenPattern.RegEx(/^-?\d+\.?\d*|^-?\d*\.?\d+/),
-        ], num => parseFloat(num)),
-        new TokenLayout('entity', [
-            TokenPattern.RegEx(/^\@/),
-        ], entity => entity.slice(1)),
+        ], token => (token.value = parseFloat(token.value.toString()), token)),
         // new TokenLayout('relativePosition', [
         //     TokenPattern.OneOf("~"),
         // ]),
-        new TokenLayout('keyword', [
-            TokenPattern.OneOfEntry([ 'let', 'const', 'listen', 'event', 'if', 'else', 'true', 'false', 'function', 'class', 'for', 'forEach', 'function' ]),
-        ]),
         new TokenLayout('identifier', [
             TokenPattern.RegEx(/^[a-zA-Z_]\w*/),
-        ]),
+        ], (token) => {
+            if (KEYWORDS.includes(token.value.toString())) {
+                token.type = 'keyword';
+            }
+            return token;
+        }),
         new TokenLayout('punctuation', [
             TokenPattern.OneOf(",;(){}[]"),
         ]),
         new TokenLayout('operator', [
-            TokenPattern.OneOfEntry([].concat(...OPERATORS)),
+            TokenPattern.OneOfEntry([].concat(...TWO_HAND_OPERATORS, ...PRE_OPERATORS, ...POST_OPERATORS)),
         ]),
     ], ['whitespace', 'comment']);
 
     const parser = new Parser(entrypoint);
-    const ast = parser.parse(tokenStream);
+    try{
+        const ast = parser.parse(tokenStream);
+        fs.writeFile('output.json', JSON.stringify(ast, null, 2), (err: any) => {if (err) console.error(err)});
+    } catch(e) {
+        console.error(e);
+    }
     // console.log(`######################## Result ###########`)
     // console.log(JSON.stringify(ast, null, 2));
 
-    fs.writeFile('output.json', JSON.stringify(ast, null, 2), (err: any) => {if (err) console.error(err)});
 
 }
 
@@ -246,11 +309,25 @@ function compile(code: string) {
 // `);
 
 compile(`
-function test(firstArg = 5, secondArg = "hi") {
-    let foo = 1 * 2 + 3 * 4 + 10;
+class Location {
+    lol = 'yolo';
 
-    if (true && foo > 3) {
+    constructor(asdf = 1, lol = 2) {
+        const foo = 'bar';
+    }
+
+    foo() {
+
+    }
+}
+
+function test(firstArg = 5, secondArg = "hi") {
+    let foo = 1 * 2 + -3 * 4 + 10;
+
+    if (!true && foo-- > 3) {
         log('working!');
     }
+
+    const location = new Location(~1, ~-1, ~5);
 }
 `)

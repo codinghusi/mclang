@@ -206,10 +206,10 @@ export class SegmentSequence extends Segment {
     }
 
     between(from: Segment, to: Segment, parser: ResolveableSegment) {
-        this.parse(new SegmentSequence()
-            .parse(from)
-            .until(to, parser)
-        );
+        this.parse(new Segment(tokenStream => {
+            parser = this.resolveSegment(parser);
+            return Segments.between(from, to, parser).run(tokenStream);
+        }));
         return this;
     }
 

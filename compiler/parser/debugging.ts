@@ -16,12 +16,12 @@ export class ParserDebugger {
     static debug(code: string) {
         this.init();
         const max = 40;
-        let tabsStr = new Array(Math.min(max, Math.max(1, this.tabs))).fill('  ').join('').slice(1);
-        if (tabsStr.length >= max) {
+        let tabsStr = '  '.repeat(Math.min(max, this.tabs));
+        if (this.tabs >= max) {
              tabsStr += '>>> ';
         }
-        // console.log(tabsStr + code);
-        fs.appendFile('debugging.txt', tabsStr + code + '\n', () => {});
+        console.log(tabsStr + code);
+        fs.appendFile('debugging.txt', tabsStr + code + '\n', (err) => {if (err) throw err;});
     }
 
     static indent() {
