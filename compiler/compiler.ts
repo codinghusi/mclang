@@ -100,21 +100,28 @@ const entrypoint = new SegmentSequence('entrypoint')
 
     .register(
         new SegmentSequence('functionCall')
-            .delimitted(punctuation('('), punctuation(')'), punctuation(','), new SegmentSequence('parameter')
-                .parse('expression').as('value')
-            ).as('parameters')
+            .delimitted(punctuation('('), punctuation(')'), punctuation(','), 'expression')
     )
 
-    .register(new SegmentSequence('accessor')
-        .noType()
-        .oneOf(
-            SegmentSequence.resolveSegment('functionCall').setKey('functionCall'),
-            // TODO: add array access
-        ))
+    .register(
+        new SegmentSequence('arrayAccessor')
+            .expect('punctuation', '[')
+            .parse('expression').as('index')
+            .expect('punctuation', ']')
+    )
+
+    .register(new SegmentSequence('accessors')
+        .whileWorking(new SegmentSequence()
+            .oneOf(
+                SegmentSequence.resolveSegment('functionCall').as('call'),
+                SegmentSequence.resolveSegment('arrayAccessor').as('index')
+            )
+        )
+    )
 
     .register(new SegmentSequence('chainable')
         .expectType('identifier').as('key')
-        .optional('accessor')
+        .optional('accessors').as('accessors')
         .optional(new SegmentSequence()
             .expect('punctuation', '.')
             .parse('chainable').as('chain')
@@ -129,8 +136,8 @@ const entrypoint = new SegmentSequence('entrypoint')
             new SegmentSequence()
                 .between(punctuation('('), punctuation(')'), 'expression'),
             'function'
-        )
-        .optional('accessor')
+        ).as('base')
+        .optional('accessors').as('accessors')
         .optional(new SegmentSequence()
             .expect('punctuation', '.')
             .parse('chainable').as('chain')
@@ -142,32 +149,55 @@ const entrypoint = new SegmentSequence('entrypoint')
         .parse(new Segment((tokenStream, context, result) => {
             const left = result.data.left;
             const operation = next_operation(-1, left).run(tokenStream);
-            if (!('right' in operation.data)) {
+            if (!operation.data || !('right' in operation.data)) {
                 return new Result(tokenStream).setMatch(false);
             }
             return operation;
         }))
     )
+
+    .register(new SegmentSequence('map')
+        .delimitted(punctuation('{'), punctuation('}'), punctuation(','), new SegmentSequence()
+            .expectType('identifier').as('key')
+            .expect('punctuation', ':')
+            .parse('expression').as('value')
+        ).as('entries')
+    )
+
+    .register(new SegmentSequence('array')
+        .delimitted(punctuation('['), punctuation(']'), punctuation(','), 'expression')
+    )
+
     .register(new SegmentSequence('value')
-        .optional(
-            Segments.expectOneOf('operator', PRE_OPERATORS).as('preOperator')
-        )
-        .oneOf(
+        .oneOf(new SegmentSequence()
+            .optional(
+                Segments.expectOneOf('operator', PRE_OPERATORS).as('preOperator')
+            )
+            .oneOf(
+                new SegmentSequence()
+                    .expectType('number').as('value')
+                    .add('valuetype', 'number'),
+                new SegmentSequence()
+                    .expectType('string').as('value')
+                    .add('valuetype', 'string'),
+                new SegmentSequence()
+                    .expectOneOf('keyword', ['true', 'false']).as('value')
+                    .add('valuetype', 'boolean'),
+                new SegmentSequence()
+                    .expectType('identifier').as('value')
+                    .add('valuetype', 'variable'),
+                
+            )
+            .optional(
+                Segments.expectOneOf('operator', POST_OPERATORS).as('postOperator')
+            ),
+
             new SegmentSequence()
-                .expectType('number').as('value')
-                .add('valuetype', 'number'),
+                .parse('map').as('value')
+                .add('valuetype', 'map'),
             new SegmentSequence()
-                .expectType('string').as('value')
-                .add('valuetype', 'string'),
-            new SegmentSequence()
-                .expectOneOf('keyword', ['true', 'false']).as('value')
-                .add('valuetype', 'boolean'),
-            new SegmentSequence()
-                .expectType('identifier').as('value')
-                .add('valuetype', 'variable'),
-        )
-        .optional(
-            Segments.expectOneOf('operator', POST_OPERATORS).as('postOperator')
+                .parse('array').as('value')
+                .add('valuetype', 'array'),
         )
     )
 
@@ -256,15 +286,6 @@ const entrypoint = new SegmentSequence('entrypoint')
     )
 
     // start
-    // .untilEOF('untilEof', new SegmentSequence()
-    //     .join(null,
-    //         'atom',
-    //         new SegmentSequence()
-    //             .segment(Segments.debugSkip())
-    //             // .segment(Segments.fail('Nothing applied'))
-    //     )
-    // )
-    // .parse('command').as('ast');
     .untilEOF('command').as('ast');
 
 
@@ -298,7 +319,7 @@ function compile(code: string) {
             return token;
         }),
         new TokenLayout('punctuation', [
-            TokenPattern.OneOf(".,;(){}[]"),
+            TokenPattern.OneOf(".,:;(){}[]"),
         ]),
         new TokenLayout('operator', [
             TokenPattern.OneOfEntry([].concat(...TWO_HAND_OPERATORS, ...PRE_OPERATORS, ...POST_OPERATORS)),
@@ -356,4 +377,8 @@ function test(firstArg = 5, secondArg = "hi") {
 
     const location = new Location(~1, ~-1, ~5);
 }
+
+const theMap = {
+    foo: 'bar'
+};
 `)

@@ -100,9 +100,25 @@ export const Segments = {
             const result = new Result(tokenStream).setMatch(true);
             const values = [];
             while (!tokenStream.eof()) {
-                const parserResult = parser.run(tokenStream);
+                const parserResult = parser.run(tokenStream).setFlatten();
                 if (!parserResult.matched()) {
                     return parserResult;
+                }
+                if (parserResult.hasData()) {
+                    values.push(parserResult.data);
+                }
+            }
+            return result.setData(values);
+        });
+    },
+    whileWorking(parser: Segment): Segment {
+        return new Segment((tokenStream) => {
+            const result = new Result(tokenStream).setMatch(true);
+            const values = [];
+            while (!tokenStream.eof()) {
+                const parserResult = parser.run(tokenStream).setFlatten();
+                if (!parserResult.matched()) {
+                    return result;
                 }
                 if (parserResult.hasData()) {
                     values.push(parserResult.data);
@@ -122,7 +138,7 @@ export const Segments = {
             }
 
             while (!to.run(tokenStream).matched()) {
-                const parserResult = SegmentSequence.resolveSegment(parser).run(tokenStream);
+                const parserResult = SegmentSequence.resolveSegment(parser).run(tokenStream).setFlatten();
                 if (!parserResult.matched()) {
                     return result;
                 }
@@ -139,6 +155,7 @@ export const Segments = {
                     break;
                 }
             }
+            console.log('delimitted', values);
             return result.setData(values);
         });
         // }, `.delmitted('${key}', ${from.debuggingCode}, ${to.debuggingCode}, ${seperator.debuggingCode}, ${parser})`);

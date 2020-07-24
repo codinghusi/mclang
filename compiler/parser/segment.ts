@@ -8,6 +8,7 @@ export class Segment {
     public key: string;
     private _doSkip = false;
     private _dontSkip = false;
+    private _flatten = false;
     constructor(private fn: (tokenStream: TokenStream, context: Segment, data?: any) => Result,
                 public debuggingCode?: string) { }
 
@@ -47,7 +48,16 @@ export class Segment {
         if (result.type) {
             result.setReference(new Reference(checkpoint, tokenStream.checkpoint()));
         }
-        return result;
+        return result.setFlatten(this._flatten);
+    }
+
+    flatten(flatten = true) {
+        this._flatten = flatten;
+        return this;
+    }
+
+    flattened() {
+        return this._flatten;
     }
 
     doSkip(skip = true) {

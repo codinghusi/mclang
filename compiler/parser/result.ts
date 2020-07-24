@@ -7,6 +7,7 @@ export class Result {
     private _matched = false;
     private _hasData = false;
     private _data: any;
+    private _flatten = false;
     public progress: number;
     public failMessage: string;
     public failData: any;
@@ -24,7 +25,7 @@ export class Result {
             return null;
         }
         let data = this._data;
-        if (this.type && typeof(this._data) === 'object') {
+        if (this.type && typeof(data) === 'object') {
             data = {
                 type: this.type,
                 ...this._data,
@@ -39,13 +40,8 @@ export class Result {
         return data;
     }
 
-    private updateData() {
-        this._data = {
-            // type: this.type,
-            ...this._data,
-            // reference: this.reference
-        };
-        return this;
+    flattened() {
+        return this._flatten;
     }
 
     setPosition(position: InputStreamCheckpoint) {
@@ -55,7 +51,6 @@ export class Result {
 
     setReference(reference: Reference) {
         this.reference = reference;
-        this.updateData();
         return this;
     }
 
@@ -76,7 +71,6 @@ export class Result {
 
     setType(type: string) {
         this.type = type;
-        this.updateData();
         return this;
     }
 
@@ -88,6 +82,14 @@ export class Result {
 
     setProgressMessage(message: string) {
         this.progressMessage = message;
+        return this;
+    }
+
+    setFlatten(flatten = true) {
+        this._flatten = flatten;
+        if (flatten) {
+            console.log('flattened ', this.key, this.data);
+        }
         return this;
     }
 
@@ -137,30 +139,17 @@ export class Result {
     }
 
     addResult(result: Result) {
-        if (result.hasData()) {
+        if (result.hasData() && (result.key || result.flattened())) {
             if (Array.isArray(result.data) || typeof(result.data) !== 'object') {
                 this.setData(result.data);
             }
             else {
                 this.addData(result.data);
             }
-            // if (result.key) {
-            //     this.add(result.key, result.data);
-            // } else if (typeof(result.data) === 'object') {
-            //     this.addData(result.data);
-                // if (!this.reference && result.reference) {
-                //     this.addData({
-                //         ...result.data,
-                //         reference: result.reference
-                //     });
-                // } else {
-                //     this.addData(result.data);
-                // }
-            // }
-            // else if (!Object.keys(this.data).length) {
-            //     this._data = result.data;
-            //     this._hasData = true;
-            // }
+        } else {
+            if (result.hasData()) {
+                console.warn('uhh data of result couldnt be added', result.data?.[this.key]?.type ?? result.data, result.key, result._flatten);
+            }
         }
         return this;
     }

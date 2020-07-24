@@ -104,6 +104,7 @@ export class SegmentSequence extends Segment {
             if (!newParser) {
                 throw new Error(`Parser with name '${segment}' doesn't exist`);
             }
+            newParser.resetAs();
             return newParser;
         } else {
             // TODO: Is it correct to register it here?
@@ -113,27 +114,32 @@ export class SegmentSequence extends Segment {
         return segment as SegmentSequence;
     }
 
+    resetAs() {
+        this.lastSegment = this;
+        return this;
+    }
+
     resolveSegment(segment: ResolveableSegment) {
         return SegmentSequence.resolveSegment(segment);
     }
 
     parse(segment: ResolveableSegment) {
+        let resolvedSegment;
         if (typeof(segment) === 'string') {
-            const resolvedSegment = new Segment((tokenStream) => {
-                return this.resolveSegment(segment).run(tokenStream);
+            resolvedSegment = new Segment((tokenStream, context) => {
+                return this.resolveSegment(segment).run(tokenStream).setFlatten(context.flattened());
             });
-            this.segments.push(resolvedSegment);
-            this.lastSegment = resolvedSegment;
         } else {
-            this.segments.push(segment);
-            this.lastSegment = segment;
+            resolvedSegment = segment;
         }
+        this.segments.push(resolvedSegment);
+        this.lastSegment = resolvedSegment;
         
         return this;
     }
 
     debug(message: string) {
-        this.parse(new Segment((tokenStream) => (console.log(message),new Result(tokenStream).setMatch(true))))
+        this.parse(new Segment((tokenStream) => (console.log(message), new Result(tokenStream).setMatch(true))))
         return this;
     }
 
@@ -217,6 +223,14 @@ export class SegmentSequence extends Segment {
         return this;
     }
 
+    whileWorking(parser: ResolveableSegment) {
+        this.parse(new Segment(tokenStream => {
+            parser = this.resolveSegment(parser);
+            return Segments.whileWorking(parser).run(tokenStream);
+        }));
+        return this;
+    }
+
     doIf(condition: ResolveableSegment, then: ResolveableSegment) {
         this.parse(new Segment(tokenStream => {
             const parserCondition = this.resolveSegment(condition);
@@ -241,6 +255,20 @@ export class SegmentSequence extends Segment {
 
     setKey(key: string) {
         super.as(key);
+        return this;
+    }
+
+    setFlatten(flatten = true) {
+        super.flatten(flatten);
+        return this;
+    }
+
+    flatten(flatten = true): this {
+        if (this.lastSegment === this) {
+            this.setFlatten(flatten);
+        } else {
+            this.lastSegment.flatten(flatten);
+        }
         return this;
     }
 
