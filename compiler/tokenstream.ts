@@ -71,7 +71,7 @@ export class TokenLayout {
 export class TokenStreamCheckpoint {
     constructor(private tokenStream: TokenStream,
                 private inputStreamCheckpoint: InputStreamCheckpoint) {
-                    console.log('new checkpoint at ' + inputStreamCheckpoint.line + ':' + inputStreamCheckpoint.column + ', ' + inputStreamCheckpoint.position);
+                    // console.log('new checkpoint at ' + inputStreamCheckpoint.line + ':' + inputStreamCheckpoint.column + ', ' + inputStreamCheckpoint.position);
                 }
     
     get progress() {
@@ -82,7 +82,7 @@ export class TokenStreamCheckpoint {
         this.inputStreamCheckpoint.revert();
         this.tokenStream.current = null;
         this.tokenStream.updateCheckpoint();
-        console.log('reverted to ' + this.inputStreamCheckpoint.line + ':' + this.inputStreamCheckpoint.column + ', ' + this.inputStreamCheckpoint.position);
+        // console.log('reverted to ' + this.inputStreamCheckpoint.line + ':' + this.inputStreamCheckpoint.column + ', ' + this.inputStreamCheckpoint.position);
     }
 
     toJSON() {

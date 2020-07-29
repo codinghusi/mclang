@@ -100,7 +100,7 @@ const entrypoint = new SegmentSequence('entrypoint')
 
     .register(
         new SegmentSequence('functionCall')
-            .delimitted(punctuation('('), punctuation(')'), punctuation(','), 'expression')
+            .delimitted(punctuation('('), punctuation(')'), punctuation(','), 'expression').as('parameters')
     )
 
     .register(
@@ -116,7 +116,7 @@ const entrypoint = new SegmentSequence('entrypoint')
                 SegmentSequence.resolveSegment('functionCall').as('call'),
                 SegmentSequence.resolveSegment('arrayAccessor').as('index')
             )
-        )
+        ).flatten()
     )
 
     .register(new SegmentSequence('chainable')
@@ -134,7 +134,7 @@ const entrypoint = new SegmentSequence('entrypoint')
             'operation',
             'value',
             new SegmentSequence()
-                .between(punctuation('('), punctuation(')'), 'expression'),
+                .between(punctuation('('), punctuation(')'), 'expression').flatten(),
             'function'
         ).as('base')
         .optional('accessors').as('accessors')
@@ -153,7 +153,7 @@ const entrypoint = new SegmentSequence('entrypoint')
                 return new Result(tokenStream).setMatch(false);
             }
             return operation;
-        }))
+        })).flatten()
     )
 
     .register(new SegmentSequence('map')
@@ -217,16 +217,13 @@ const entrypoint = new SegmentSequence('entrypoint')
 
     .register(new SegmentSequence('functionBody')
         .expectType('identifier').as('name')
-        .debug('functionBody: name')
         .parse('arguments').as('arguments')
-        .debug('functionBody: args')
         .parse('codeblock').as('body')
-        .debug('functionBody: body')
     )
 
     .register(new SegmentSequence('function')
         .expect('keyword', 'function')
-        .parse('functionBody')
+        .parse('functionBody').flatten()
     )
 
     .register(new SegmentSequence('declarationBody')
@@ -258,7 +255,7 @@ const entrypoint = new SegmentSequence('entrypoint')
             .oneOf(
                 'functionBody',
                 new SegmentSequence()
-                    .parse('declarationBody')
+                    .parse('declarationBody').flatten()
                     .expect('punctuation', ';')
             )
         ).as('body')
@@ -339,19 +336,19 @@ function compile(code: string) {
 
 }
 
-// compile(`
-// function test(asdf, blub) {
-//     const foo = "bar\\"asdf";
-// }
+compile(`
+function test(asdf, blub) {
+    const foo = "bar\\"asdf";
+}
 
-// // relative positions aren't implemented yet
-// const location = Location(1, 1, 1);
+// relative positions aren't implemented yet
+const location = Location(1, 1, 1);
 
-// // should that get implemented?
-// const fn = () => {
-//     say("hi");
-// };
-// `);
+// should that get implemented?
+const fn = () => {
+    say("hi");
+};
+`);
 
 compile(`
 class Location {
@@ -382,3 +379,7 @@ const theMap = {
     foo: 'bar'
 };
 `)
+
+// compile(`
+// const foo = 'bar';
+// `)

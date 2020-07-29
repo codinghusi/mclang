@@ -2,16 +2,17 @@ import { TokenStream, Token, TokenStreamCheckpoint } from '../tokenstream';
 import { ResolveableSegment, SegmentSequence } from './segment-sequence';
 import { Reference } from "./reference";
 import { InputStreamCheckpoint } from '../inputstream';
+import { ParserDebugger } from './debugging';
 
 export class Result {
     private _matched = false;
     private _hasData = false;
     private _data: any;
-    private _flatten = false;
+    private _flatten: boolean = null;
     public progress: number;
     public failMessage: string;
     public failData: any;
-    public key: string;
+    public key: string = null;
     public type: string;
     public progressMessage: string;
     public reference: Reference;
@@ -65,7 +66,15 @@ export class Result {
     }
 
     setKey(key: string) {
-        this.key = key;
+        if (key) {
+            if (this.key && this.key !== key) {
+                console.log(`overwriting ${this.key} to ${key}`);
+            }
+            this.key = key;
+        }
+        if (key === 'init' && this.matched()) {
+            // console.log('key init', this);
+        }
         return this;
     }
 
@@ -86,10 +95,10 @@ export class Result {
     }
 
     setFlatten(flatten = true) {
-        this._flatten = flatten;
-        if (flatten) {
-            console.log('flattened ', this.key, this.data);
+        if (flatten !== this._flatten) {
+            // console.log('changed flatten', flatten, this.key, this.data);
         }
+        this._flatten = flatten;
         return this;
     }
 
@@ -119,9 +128,6 @@ export class Result {
     setData(data: any) {
         this._data = data;
         this._hasData = true;
-        if (this.type === 'condition' || this.type === 'if') {
-            console.log('if', this.data);
-        }
         return this;
     }
 
@@ -148,7 +154,9 @@ export class Result {
             }
         } else {
             if (result.hasData()) {
-                console.warn('uhh data of result couldnt be added', result.data?.[this.key]?.type ?? result.data, result.key, result._flatten);
+                ParserDebugger.debug('data couldnt be added');
+                console.warn('uhh data of result couldnt be added', result.key, result.flattened(), result.data, '\nto', this.key, this.data);
+                // debugger;
             }
         }
         return this;

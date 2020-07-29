@@ -101,14 +101,15 @@ export const Segments = {
             const values = [];
             while (!tokenStream.eof()) {
                 const parserResult = parser.run(tokenStream).setFlatten();
-                if (!parserResult.matched()) {
+                if (!parserResult.matched()) {  
                     return parserResult;
                 }
                 if (parserResult.hasData()) {
+                    // console.log('that data', parserResult.data);
                     values.push(parserResult.data);
                 }
             }
-            return result.setData(values);
+            return result.setData(values).setFlatten(true);
         });
     },
     whileWorking(parser: Segment): Segment {
@@ -124,7 +125,7 @@ export const Segments = {
                     values.push(parserResult.data);
                 }
             }
-            return result.setData(values);
+            return result.setData(values).setFlatten(true);
         });
     },
     delimitted(from: Segment, to: Segment, seperator: Segment, parser: ResolveableSegment): Segment {
@@ -142,7 +143,7 @@ export const Segments = {
                 if (!parserResult.matched()) {
                     return result;
                 }
-
+                
                 if (parserResult.hasData()) {
                     values.push(parserResult.data);
                 }
@@ -155,8 +156,7 @@ export const Segments = {
                     break;
                 }
             }
-            console.log('delimitted', values);
-            return result.setData(values);
+            return result.setData(values).setFlatten(true);
         });
         // }, `.delmitted('${key}', ${from.debuggingCode}, ${to.debuggingCode}, ${seperator.debuggingCode}, ${parser})`);
     }

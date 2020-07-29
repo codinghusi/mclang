@@ -2,13 +2,12 @@ import { TokenStream } from "../tokenstream";
 import { Result } from "./result";
 import { ParserDebugger } from './debugging';
 import { Reference } from "./reference";
-import { InputStreamCheckpoint } from '../inputstream';
 
 export class Segment {
-    public key: string;
+    public key: string = null;
     private _doSkip = false;
     private _dontSkip = false;
-    private _flatten = false;
+    private _flatten: boolean = null;
     constructor(private fn: (tokenStream: TokenStream, context: Segment, data?: any) => Result,
                 public debuggingCode?: string) { }
 
@@ -48,7 +47,12 @@ export class Segment {
         if (result.type) {
             result.setReference(new Reference(checkpoint, tokenStream.checkpoint()));
         }
-        return result.setFlatten(this._flatten);
+
+        if (this._flatten !== null) {
+            result.setFlatten(this._flatten);
+        }
+
+        return result;
     }
 
     flatten(flatten = true) {
@@ -72,6 +76,9 @@ export class Segment {
 
     as(key: string) {
         this.key = key;
+        if (key === 'init') {
+            // console.log('key init', this);
+        }
         return this;
     }
 }
